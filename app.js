@@ -18,6 +18,10 @@ const firebaseConfig = {
   measurementId: "G-SNP025BS5G"
 };
 
+const QUESTION_TIME_MS = 20000;  // 20 seconds
+const REVEAL_TIME_MS = 4500;     // show answer for 4.5 seconds then host auto-next
+const AUTO_NEXT = true;
+
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
@@ -29,6 +33,9 @@ const nameInput = $("nameInput");
 const roomCodeInput = $("roomCodeInput");
 const createRoomBtn = $("createRoomBtn");
 const joinRoomBtn = $("joinRoomBtn");
+
+const scoreBadge = $("scoreBadge");
+const myScoreEl = $("myScore");
 
 const roomCard = $("roomCard");
 const roomCodeLabel = $("roomCodeLabel");
@@ -46,14 +53,23 @@ const questionArea = $("questionArea");
 const qText = $("qText");
 const optionsArea = $("optionsArea");
 const answerInfo = $("answerInfo");
+const hintLine = $("hintLine");
+
+const timerText = $("timerText");
+const timerFill = $("timerFill");
 
 // ---------- State ----------
 let uid = null;
 let currentRoomId = null;
-let currentRoomCode = null;
 let isHost = false;
+
 let currentQuestionDoc = null;
 let totalQuestions = 20;
+
+// timing
+let questionStartMs = null;   // local ms derived from Firestore Timestamp
+let localTick = null;
+let revealed = false;
 
 // ---------- Auth ----------
 onAuthStateChanged(auth, (user) => {
@@ -66,9 +82,8 @@ onAuthStateChanged(auth, (user) => {
 });
 await signInAnonymously(auth);
 
-// ---------- Parsing your MCQs ----------
+// ---------- Parse your MCQs ----------
 function parseMcqText(raw) {
-  // ignore answer key table if present
   const cut = raw.indexOf("## 📊");
   const text = cut > -1 ? raw.slice(0, cut) : raw;
 
@@ -78,19 +93,16 @@ function parseMcqText(raw) {
   for (const m of blocks) {
     const id = Number(m[1]);
     const q = m[2].trim();
-    const optsRaw = m[3];
 
     const opts = [];
-    const optMatches = [...optsRaw.matchAll(/-\s*[ABCD]\)\s*(.*)/g)];
-    for (const om of optMatches) opts.push(om[1].trim());
+    for (const om of [...m[3].matchAll(/-\s*[ABCD]\)\s*(.*)/g)]) opts.push(om[1].trim());
 
     const ansLetter = m[4].trim();
     const answerIndex = { A: 0, B: 1, C: 2, D: 3 }[ansLetter];
 
-    if (opts.length === 4) {
-      qs.push({ id, question: q, options: opts, answerIndex });
-    }
+    if (opts.length === 4) qs.push({ id, question: q, options: opts, answerIndex });
   }
+
   return qs.sort((a,b) => a.id - b.id);
 }
 
@@ -126,7 +138,7 @@ function renderPlayers(players) {
 }
 
 async function upsertPlayer(roomId, name, hostFlag) {
-  const pRef = doc(db, "rooms", roomId, "players", uid); // doc id = uid (simplifies)
+  const pRef = doc(db, "rooms", roomId, "players", uid);
   await setDoc(pRef, {
     uid,
     name,
@@ -137,22 +149,128 @@ async function upsertPlayer(roomId, name, hostFlag) {
   }, { merge: true });
 }
 
+function tsToMs(ts) {
+  // Firestore Timestamp has toMillis()
+  if (!ts) return null;
+  if (typeof ts.toMillis === "function") return ts.toMillis();
+  return null;
+}
+
+function setTimerUI(msLeft) {
+  const s = Math.max(0, Math.ceil(msLeft / 1000));
+  timerText.textContent = String(s).padStart(2, "0");
+
+  const frac = Math.max(0, Math.min(1, msLeft / QUESTION_TIME_MS));
+  timerFill.style.transform = `scaleX(${frac})`;
+}
+
+function stopTick() {
+  if (localTick) clearInterval(localTick);
+  localTick = null;
+}
+
+// ---------- Question rendering ----------
+function renderQuestion(q, qIndex) {
+  qText.textContent = q.question;
+  optionsArea.innerHTML = "";
+  answerInfo.textContent = "";
+  hintLine.textContent = "Choose an option before the timer ends.";
+
+  revealed = false;
+
+  q.options.forEach((opt, idx) => {
+    const btn = document.createElement("button");
+    btn.className = "optBtn";
+    btn.dataset.idx = String(idx);
+    btn.textContent = `${String.fromCharCode(65 + idx)}) ${opt}`;
+    btn.onclick = () => submitAnswer(qIndex, idx);
+    optionsArea.appendChild(btn);
+  });
+}
+
+function lockOptions() {
+  for (const btn of optionsArea.querySelectorAll("button")) {
+    btn.disabled = true;
+    btn.classList.add("locked");
+  }
+}
+
+function revealCorrect(chosenIndex) {
+  if (!currentQuestionDoc) return;
+
+  const correct = currentQuestionDoc.answerIndex;
+
+  for (const btn of optionsArea.querySelectorAll("button")) {
+    const idx = Number(btn.dataset.idx);
+    btn.disabled = true;
+    btn.classList.add("locked");
+    if (idx === correct) btn.classList.add("correct");
+    if (chosenIndex != null && idx === chosenIndex && chosenIndex !== correct) btn.classList.add("wrong");
+  }
+
+  if (chosenIndex == null) {
+    answerInfo.textContent = `⏱️ Time up! Correct answer: ${String.fromCharCode(65 + correct)}`;
+  } else if (chosenIndex === correct) {
+    answerInfo.textContent = `✅ Correct! (${String.fromCharCode(65 + correct)})`;
+  } else {
+    answerInfo.textContent = `❌ Wrong. Correct: ${String.fromCharCode(65 + correct)}`;
+  }
+  hintLine.textContent = "Next question will start soon.";
+}
+
+// ---------- Answer submit (with timer lock) ----------
+async function submitAnswer(qIndex, chosenIndex) {
+  if (!currentRoomId || !currentQuestionDoc) return;
+
+  // prevent late answers
+  if (!questionStartMs) return;
+  const now = Date.now();
+  if (now > questionStartMs + QUESTION_TIME_MS) return;
+
+  const playerRef = doc(db, "rooms", currentRoomId, "players", uid);
+  const correct = currentQuestionDoc.answerIndex;
+
+  await runTransaction(db, async (tx) => {
+    const pSnap = await tx.get(playerRef);
+    if (!pSnap.exists()) return;
+
+    const p = pSnap.data();
+    const answered = p.answered || {};
+    if (answered[String(qIndex)]) return;
+
+    answered[String(qIndex)] = true;
+
+    const isCorrect = chosenIndex === correct;
+    const newScore = (p.score || 0) + (isCorrect ? 1 : 0);
+
+    tx.update(playerRef, {
+      answered,
+      score: newScore,
+      lastAnswer: { qIndex, chosenIndex, at: serverTimestamp() }
+    });
+  });
+
+  // small UX: show chosen immediately (final reveal happens at 20s)
+  hintLine.textContent = "Answer saved ✅ (Wait for reveal)";
+}
+
+// ---------- Attach listeners ----------
 function attachRoomListeners(roomId) {
   const roomRef = doc(db, "rooms", roomId);
 
+  // room doc
   onSnapshot(roomRef, async (snap) => {
     if (!snap.exists()) return;
     const data = snap.data();
 
     roomStatusLabel.textContent = data.status || "waiting";
-    currentRoomCode = data.roomCode;
 
     const cq = data.currentQuestion ?? 0;
     const tq = data.totalQuestions ?? totalQuestions;
     qNumLabel.textContent = data.status === "live" ? (cq + 1) : "-";
     qTotalLabel.textContent = tq;
 
-    // host buttons
+    // host controls
     if (isHost) {
       hostControls.classList.remove("hidden");
       startGameBtn.classList.toggle("hidden", data.status !== "waiting");
@@ -162,73 +280,113 @@ function attachRoomListeners(roomId) {
       hostControls.classList.add("hidden");
     }
 
-    // show question when live
+    // question on/off
     questionArea.classList.toggle("hidden", data.status !== "live");
 
-    // load current question doc
-    if (data.status === "live") {
+    // timer start time
+    const startMs = tsToMs(data.questionStartAt);
+    if (data.status === "live" && startMs && startMs !== questionStartMs) {
+      questionStartMs = startMs;
+      // reset timer tick
+      stopTick();
+      revealed = false;
+
+      // load question doc
       const qRef = doc(db, "rooms", roomId, "questions", String(cq));
       const qSnap = await getDoc(qRef);
       if (qSnap.exists()) {
         currentQuestionDoc = { id: qSnap.id, ...qSnap.data() };
         renderQuestion(currentQuestionDoc, cq);
+        startLocalTimer(cq);
       }
+    }
+
+    if (data.status !== "live") {
+      stopTick();
+      timerText.textContent = "--";
+      timerFill.style.transform = "scaleX(1)";
+      questionStartMs = null;
+      revealed = false;
     }
   });
 
-  // players list
+  // players list (scoreboard)
   const playersQ = query(collection(db, "rooms", roomId, "players"), orderBy("score", "desc"));
   onSnapshot(playersQ, (snap) => {
     const players = snap.docs.map(d => d.data());
     renderPlayers(players);
   });
-}
 
-function renderQuestion(q, qIndex) {
-  qText.textContent = q.question;
-  optionsArea.innerHTML = "";
-  answerInfo.textContent = "";
-
-  q.options.forEach((opt, idx) => {
-    const btn = document.createElement("button");
-    btn.className = "opt";
-    btn.textContent = `${String.fromCharCode(65 + idx)}) ${opt}`;
-    btn.onclick = () => submitAnswer(qIndex, idx);
-    optionsArea.appendChild(btn);
+  // my own score (top-left)
+  onSnapshot(doc(db, "rooms", roomId, "players", uid), (snap) => {
+    if (!snap.exists()) return;
+    const me = snap.data();
+    scoreBadge.classList.remove("hidden");
+    myScoreEl.textContent = String(me.score ?? 0);
   });
 }
 
-async function submitAnswer(qIndex, chosenIndex) {
-  if (!currentRoomId || !currentQuestionDoc) return;
+async function maybeHostAutoNext() {
+  if (!AUTO_NEXT || !isHost || !currentRoomId) return;
+  // wait REVEAL_TIME_MS then advance
+  await new Promise(r => setTimeout(r, REVEAL_TIME_MS));
+  // only advance if still live
+  const roomRef = doc(db, "rooms", currentRoomId);
+  const snap = await getDoc(roomRef);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  if (data.status !== "live") return;
 
-  const playerRef = doc(db, "rooms", currentRoomId, "players", uid);
-  const qCorrect = currentQuestionDoc.answerIndex;
-
+  // advance via transaction
   await runTransaction(db, async (tx) => {
-    const pSnap = await tx.get(playerRef);
-    if (!pSnap.exists()) return;
+    const s = await tx.get(roomRef);
+    if (!s.exists()) return;
+    const d = s.data();
+    const cq = d.currentQuestion ?? 0;
+    const tq = d.totalQuestions ?? totalQuestions;
 
-    const p = pSnap.data();
-    const answered = p.answered || {};
-    if (answered[String(qIndex)]) return; // already answered
-
-    answered[String(qIndex)] = true;
-
-    const isCorrect = chosenIndex === qCorrect;
-    const newScore = (p.score || 0) + (isCorrect ? 1 : 0);
-
-    tx.update(playerRef, { answered, score: newScore });
+    const next = cq + 1;
+    if (next >= tq) {
+      tx.update(roomRef, { status: "finished" });
+    } else {
+      tx.update(roomRef, {
+        currentQuestion: next,
+        questionStartAt: serverTimestamp()
+      });
+    }
   });
+}
 
-  answerInfo.textContent = chosenIndex === qCorrect ? "✅ Correct!" : "❌ Wrong!";
+function startLocalTimer(qIndex) {
+  stopTick();
+
+  localTick = setInterval(async () => {
+    if (!questionStartMs) return;
+
+    const now = Date.now();
+    const msLeft = (questionStartMs + QUESTION_TIME_MS) - now;
+    setTimerUI(msLeft);
+
+    if (msLeft <= 0 && !revealed) {
+      revealed = true;
+
+      // find my last answer for this question (if any) from buttons state is unknown,
+      // so we just reveal with "null" locally; score is already in Firestore anyway.
+      lockOptions();
+      revealCorrect(null);
+
+      stopTick();
+      await maybeHostAutoNext();
+    }
+  }, 120);
 }
 
 // ---------- Create Room ----------
 createRoomBtn.onclick = async () => {
   const name = nameInput.value.trim() || "Host";
 
-  if (QUESTIONS_BANK.length < 100) {
-    alert("MCQ parsing failed. Make sure you pasted questions 1–100 into rawQuestions.js exactly.");
+  if (QUESTIONS_BANK.length !== 100) {
+    alert("MCQ parsing issue. Ensure rawQuestions.js contains the full 1–100 bank.");
     return;
   }
 
@@ -248,7 +406,7 @@ createRoomBtn.onclick = async () => {
     createdAt: serverTimestamp()
   });
 
-  // create lookup doc: roomCodes/{ABCD} -> {roomId}
+  // lookup: roomCodes/{ABCD} -> {roomId}
   await setDoc(doc(db, "roomCodes", code), {
     roomId: roomRef.id,
     createdAt: serverTimestamp()
@@ -262,7 +420,7 @@ createRoomBtn.onclick = async () => {
   attachRoomListeners(roomRef.id);
 };
 
-// ---------- Join Room by Code ----------
+// ---------- Join Room ----------
 joinRoomBtn.onclick = async () => {
   const name = nameInput.value.trim() || "Player";
   const code = roomCodeInput.value.trim().toUpperCase();
@@ -289,7 +447,6 @@ startGameBtn.onclick = async () => {
 
   const selected = pickRandomN(QUESTIONS_BANK, totalQuestions);
 
-  // write selected 20 into rooms/{roomId}/questions/{0..19}
   const batch = writeBatch(db);
   selected.forEach((q, idx) => {
     batch.set(doc(db, "rooms", currentRoomId, "questions", String(idx)), {
@@ -299,9 +456,11 @@ startGameBtn.onclick = async () => {
       sourceId: q.id
     });
   });
+
   batch.update(doc(db, "rooms", currentRoomId), {
     status: "live",
     currentQuestion: 0,
+    questionStartAt: serverTimestamp(),
     startedAt: serverTimestamp()
   });
 
@@ -323,7 +482,10 @@ nextQuestionBtn.onclick = async () => {
     if (next >= tq) {
       tx.update(roomRef, { status: "finished" });
     } else {
-      tx.update(roomRef, { currentQuestion: next });
+      tx.update(roomRef, {
+        currentQuestion: next,
+        questionStartAt: serverTimestamp()
+      });
     }
   });
 };
