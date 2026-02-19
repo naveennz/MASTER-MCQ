@@ -20,133 +20,156 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// Timings
-const QUESTION_TIME = 30000;
-const REVEAL_TIME = 6000;
+// Timing Constants
+const QUESTION_TIME = 15000; // 15s
+const REVEAL_TIME = 5000;    // 5s
 
 let uid, currentRoomId, isHost = false;
-let currentQuestionData = null;
+let currentQ = null;
+let timerInterval = null;
+let hasRevealed = false;
+
+// Helpers
+const $ = (id) => document.getElementById(id);
+const hideAll = () => ['setupScreen','lobbyScreen','gameScreen','resultScreen'].forEach(s => $(s).classList.add('hidden'));
 
 // Auth
-onAuthStateChanged(auth, (u) => { if(u) uid = u.uid; document.getElementById('authStatus').innerText = u ? "Connected" : "Error"; });
+onAuthStateChanged(auth, u => { if(u) uid = u.uid; });
 await signInAnonymously(auth);
 
-// Parse Questions from rawQuestions.js
-function parseQuestions(text) {
-  const regex = /\*\*(\d+)\.\s([\s\S]*?)\*\*([\s\S]*?)\*\*Answer:\s*([ABCD])\*\*/g;
-  const matches = [...text.matchAll(regex)];
-  return matches.map(m => {
-    const opts = [...m[3].matchAll(/-\s*[ABCD]\)\s*(.*)/g)].map(o => o[1].trim());
-    return { id: m[1], q: m[2].trim(), opts, ans: {A:0, B:1, C:2, D:3}[m[4]] };
-  });
+function parseQs(text) {
+  const blocks = [...text.matchAll(/\*\*(\d+)\.\s([\s\S]*?)\*\*([\s\S]*?)\*\*Answer:\s*([ABCD])\*\*/g)];
+  return blocks.map(m => ({
+    id: m[1], q: m[2].trim(), 
+    opts: [...m[3].matchAll(/-\s*[ABCD]\)\s*(.*)/g)].map(o => o[1].trim()),
+    ans: {A:0, B:1, C:2, D:3}[m[4]]
+  }));
 }
-const BANK = parseQuestions(RAW_MCQ_TEXT);
+const BANK = parseQs(RAW_MCQ_TEXT);
 
-// Screens
-function showScreen(id) {
-  ['setupScreen', 'lobbyScreen', 'gameScreen', 'resultScreen'].forEach(s => document.getElementById(s).classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden');
-}
-
-// Room Logic
-async function joinRoom(roomId, name, hostFlag) {
-  currentRoomId = roomId;
-  isHost = hostFlag;
-  await setDoc(doc(db, "rooms", roomId, "players", uid), { name, score: 0, isHost: hostFlag });
-  showScreen('lobbyScreen');
-  listenToRoom(roomId);
-}
-
-function listenToRoom(roomId) {
-  // Listen to Players (So host can see who joined)
+// Room Sync
+function initListeners(roomId) {
+  // 1. Players & Scores (Persistent Score Card)
   onSnapshot(collection(db, "rooms", roomId, "players"), (snap) => {
-    const list = document.getElementById('playersList');
-    list.innerHTML = "";
-    document.getElementById('playerCountLabel').innerText = `${snap.size} Player(s) Joined`;
+    const scoreList = $('scoreList');
+    const lobbyPlayers = $('playersGrid');
+    scoreList.innerHTML = "";
+    lobbyPlayers.innerHTML = "";
+    
+    let allFinished = true;
+    let players = [];
+    
     snap.forEach(d => {
       const p = d.data();
-      list.innerHTML += `<div class="player-tag">${p.name} ${p.isHost ? '(Host)' : ''}</div>`;
+      players.push(p);
+      scoreList.innerHTML += `<div class="score-entry"><span>${p.name}</span><span>${p.score}</span></div>`;
+      lobbyPlayers.innerHTML += `<div style="padding:10px; background:#f9fafb; border-radius:8px; font-size:12px; font-weight:700">${p.name}</div>`;
+      
+      // Check if everyone answered current question
+      if (currentQ !== null && (!p.answered || !p.answered[currentQ])) allFinished = false;
     });
+
+    $('playerStatus').innerText = `${snap.size} Player(s) in room`;
+    
+    // Quick Reveal: If everyone answered, trigger early reveal
+    if (snap.size > 1 && allFinished && !hasRevealed && currentQ !== null) {
+        revealAnswer();
+    }
   });
 
-  // Listen to Room Status
+  // 2. Room State
   onSnapshot(doc(db, "rooms", roomId), async (snap) => {
     const data = snap.data();
     if (!data) return;
-    document.getElementById('roomCodeLabel').innerText = data.roomCode;
     
-    if (isHost) {
-        document.getElementById('hostControls').classList.remove('hidden');
-        document.getElementById('waitingMsg').classList.add('hidden');
+    if (data.status === "waiting") { hideAll(); $('lobbyScreen').classList.remove('hidden'); }
+    if (data.status === "live") { 
+        hideAll(); 
+        $('gameScreen').classList.remove('hidden'); 
+        $('liveScoreCard').classList.remove('hidden');
+        syncQuestion(data.currentQuestion, data.questionStartAt?.toMillis());
     }
-
-    if (data.status === "live") {
-      showScreen('gameScreen');
-      loadQuestion(data.currentQuestion, data.questionStartAt?.toMillis());
-    }
-    if (data.status === "finished") {
-      showScreen('resultScreen');
-      showPodium();
-    }
+    if (data.status === "finished") { hideAll(); $('resultScreen').classList.remove('hidden'); showFinal(); }
+    
+    if (isHost) $('hostControls').classList.remove('hidden');
+    $('roomCodeLabel').innerText = data.roomCode;
   });
 }
 
-async function loadQuestion(idx, startTs) {
-  const qSnap = await getDoc(doc(db, "rooms", currentRoomId, "questions", String(idx)));
-  currentQuestionData = qSnap.data();
-  document.getElementById('qNumLabel').innerText = idx + 1;
-  document.getElementById('qText').innerText = currentQuestionData.q;
+async function syncQuestion(idx, startMs) {
+  if (currentQ === idx) return; // Prevent duplicate loads
+  currentQ = idx;
+  hasRevealed = false;
   
-  const opts = document.getElementById('optionsArea');
-  opts.innerHTML = "";
-  currentQuestionData.opts.forEach((o, i) => {
+  const qDoc = await getDoc(doc(db, "rooms", currentRoomId, "questions", String(idx)));
+  const data = qDoc.data();
+  
+  $('qNum').innerText = idx + 1;
+  $('qText').innerText = data.q;
+  $('optionsArea').innerHTML = "";
+  
+  data.opts.forEach((o, i) => {
     const btn = document.createElement('button');
-    btn.className = 'opt';
+    btn.className = 'opt-btn';
     btn.innerText = o;
-    btn.onclick = () => submitAnswer(idx, i, btn);
-    opts.appendChild(btn);
+    btn.onclick = () => submit(idx, i, data.ans, btn);
+    $('optionsArea').appendChild(btn);
   });
 
-  runTimer(startTs);
+  startTimer(startMs);
 }
 
-function runTimer(startTs) {
-  const timerLoop = setInterval(() => {
+function startTimer(startMs) {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
     const now = Date.now();
-    const diff = (startTs + QUESTION_TIME) - now;
-    const pct = Math.max(0, (diff / QUESTION_TIME) * 100);
+    const remaining = Math.max(0, (startMs + QUESTION_TIME) - now);
+    const pct = (remaining / QUESTION_TIME) * 100;
     
-    document.getElementById('timerFill').style.width = pct + "%";
-    document.getElementById('timerLabel').innerText = Math.ceil(Math.max(0, diff/1000)) + "s";
+    $('timerFill').style.width = pct + "%";
+    $('timerText').innerText = Math.ceil(remaining/1000) + "s";
 
-    if (diff <= 0) {
-      clearInterval(timerLoop);
+    if (remaining <= 0 && !hasRevealed) {
       revealAnswer();
-      if (isHost) setTimeout(nextQuestion, REVEAL_TIME);
     }
-  }, 100);
+  }, 50); // High frequency for smooth bar
 }
 
 function revealAnswer() {
-  const btns = document.getElementById('optionsArea').querySelectorAll('button');
-  btns.forEach((b, i) => {
-    b.disabled = true;
-    if (i === currentQuestionData.ans) b.classList.add('correct');
+  hasRevealed = true;
+  if (timerInterval) clearInterval(timerInterval);
+  
+  // Disable and highlight correct
+  getDoc(doc(db, "rooms", currentRoomId, "questions", String(currentQ))).then(s => {
+    const correctIdx = s.data().ans;
+    const btns = $('optionsArea').querySelectorAll('button');
+    btns.forEach((b, i) => {
+        b.disabled = true;
+        if (i === correctIdx) b.classList.add('correct');
+    });
+    
+    if (isHost) setTimeout(moveNext, REVEAL_TIME);
   });
 }
 
-async function submitAnswer(qIdx, choice, btn) {
-  const isCorrect = choice === currentQuestionData.ans;
+async function submit(qIdx, choice, correct, btn) {
+  if (hasRevealed) return;
+  const isCorrect = choice === correct;
   if (!isCorrect) btn.classList.add('wrong');
   
   const pRef = doc(db, "rooms", currentRoomId, "players", uid);
-  const pSnap = await getDoc(pRef);
-  await updateDoc(pRef, { score: (pSnap.data().score || 0) + (isCorrect ? 100 : 0) });
+  const snap = await getDoc(pRef);
+  const currentScore = snap.data().score || 0;
   
-  document.querySelectorAll('.opt').forEach(b => b.disabled = true);
+  await updateDoc(pRef, { 
+    score: currentScore + (isCorrect ? 100 : 0),
+    [`answered.${qIdx}`]: true 
+  });
+  
+  $('optionsArea').querySelectorAll('button').forEach(b => b.disabled = true);
 }
 
-async function nextQuestion() {
+async function moveNext() {
   const roomRef = doc(db, "rooms", currentRoomId);
   const snap = await getDoc(roomRef);
   const next = snap.data().currentQuestion + 1;
@@ -154,37 +177,43 @@ async function nextQuestion() {
   else await updateDoc(roomRef, { currentQuestion: next, questionStartAt: serverTimestamp() });
 }
 
-async function showPodium() {
+async function showFinal() {
   const q = query(collection(db, "rooms", currentRoomId, "players"), orderBy("score", "desc"));
   const snap = await getDoc(q);
-  const area = document.getElementById('podiumArea');
-  area.innerHTML = "";
+  $('podiumArea').innerHTML = "";
   snap.forEach(d => {
     const p = d.data();
-    area.innerHTML += `<div class="podium-item"><span>${p.name}</span><span>${p.score} pts</span></div>`;
+    $('podiumArea').innerHTML += `<div class="podium-row"><b>${p.name}</b> <span>${p.score} pts</span></div>`;
   });
 }
 
-// Button Events
-document.getElementById('createRoomBtn').onclick = async () => {
+// UI Events
+$('createRoomBtn').onclick = async () => {
   const code = Math.random().toString(36).substring(2,6).toUpperCase();
   const roomRef = doc(collection(db, "rooms"));
   await setDoc(roomRef, { roomCode: code, status: "waiting", currentQuestion: 0, totalQuestions: 20 });
   await setDoc(doc(db, "roomCodes", code), { roomId: roomRef.id });
-  joinRoom(roomRef.id, document.getElementById('nameInput').value || "Host", true);
+  isHost = true;
+  currentRoomId = roomRef.id;
+  await setDoc(doc(db, "rooms", currentRoomId, "players", uid), { name: $('nameInput').value || "Host", score: 0, isHost: true });
+  initListeners(currentRoomId);
 };
 
-document.getElementById('joinRoomBtn').onclick = async () => {
-  const code = document.getElementById('roomCodeInput').value.toUpperCase();
-  const codeSnap = await getDoc(doc(db, "roomCodes", code));
-  if (codeSnap.exists()) joinRoom(codeSnap.data().roomId, document.getElementById('nameInput').value || "Player", false);
-  else alert("Room not found");
+$('joinRoomBtn').onclick = async () => {
+  const code = $('roomCodeInput').value.toUpperCase();
+  const cSnap = await getDoc(doc(db, "roomCodes", code));
+  if (cSnap.exists()) {
+    currentRoomId = cSnap.data().roomId;
+    await setDoc(doc(db, "rooms", currentRoomId, "players", uid), { name: $('nameInput').value || "Player", score: 0, isHost: false });
+    initListeners(currentRoomId);
+  } else alert("Room not found");
 };
 
-document.getElementById('startGameBtn').onclick = async () => {
-  const selected = BANK.sort(() => 0.5 - Math.random()).slice(0, 20);
+$('startGameBtn').onclick = async () => {
   const batch = writeBatch(db);
-  selected.forEach((q, i) => batch.set(doc(db, "rooms", currentRoomId, "questions", String(i)), q));
+  pickRandom(BANK, 20).forEach((q, i) => batch.set(doc(db, "rooms", currentRoomId, "questions", String(i)), q));
   batch.update(doc(db, "rooms", currentRoomId), { status: "live", questionStartAt: serverTimestamp() });
   await batch.commit();
 };
+
+function pickRandom(arr, n) { return [...arr].sort(() => 0.5 - Math.random()).slice(0, n); }
