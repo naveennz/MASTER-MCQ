@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Master MCQ</title>
+  <style>
+    body{font-family:system-ui,Arial;max-width:920px;margin:40px auto;padding:0 16px}
+    .card{border:1px solid #ddd;border-radius:14px;padding:16px;margin:14px 0}
+    input,button{padding:10px 12px;border-radius:10px;border:1px solid #ccc;font-size:16px}
+    button{cursor:pointer}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > *{flex:1}
+    .muted{color:#666}
+    .pill{display:inline-block;padding:4px 10px;border:1px solid #ddd;border-radius:999px;font-size:14px}
+    .hidden{display:none}
+    .opt{display:block;width:100%;text-align:left;margin:8px 0}
+    .ok{border-color:#0a0}
+    .bad{border-color:#a00}
+  </style>
+</head>
+<body>
+  <h1>Master MCQ</h1>
+  <p class="muted">Host creates room → players join with code → 20 random questions from your 100.</p>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>Your name</label><br />
+        <input id="nameInput" placeholder="e.g., Naveen" />
+      </div>
+      <div>
+        <label>Room code</label><br />
+        <input id="roomCodeInput" placeholder="e.g., ABCD" />
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button id="createRoomBtn">Create Room (Host)</button>
+      <button id="joinRoomBtn">Join Room</button>
+    </div>
+
+    <p id="authStatus" class="muted" style="margin-top:10px">Signing in...</p>
+  </div>
+
+  <div id="roomCard" class="card hidden">
+    <h2>Room: <span id="roomCodeLabel" class="pill"></span></h2>
+    <p class="muted">Status: <b id="roomStatusLabel"></b> • Question: <b id="qNumLabel"></b>/<b id="qTotalLabel"></b></p>
+
+    <div id="hostControls" class="hidden">
+      <button id="startGameBtn">Start Game</button>
+      <button id="nextQuestionBtn" class="hidden">Next Question</button>
+      <button id="endGameBtn" class="hidden">End</button>
+    </div>
+
+    <h3>Players</h3>
+    <ul id="playersList"></ul>
+
+    <hr />
+    <div id="questionArea" class="hidden">
+      <h3 id="qText"></h3>
+      <div id="optionsArea"></div>
+      <p class="muted" id="answerInfo"></p>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
