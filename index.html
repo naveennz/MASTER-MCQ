@@ -3,207 +3,123 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Master MCQ | Interactive Learning</title>
+  <title>Master MCQ | Simple Learning</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f172a;
-      --panel: rgba(30, 41, 59, 0.7);
-      --accent: #6366f1;
-      --accent-hover: #4f46e5;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --success: #22c55e;
-      --danger: #ef4444;
-      --border: rgba(255, 255, 255, 0.1);
-      --radius: 16px;
+      --bg: #fdfdfd;
+      --surface: #ffffff;
+      --text: #1a1a1a;
+      --muted: #666666;
+      --accent: #000000;
+      --primary: #2563eb;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --border: #e5e7eb;
+      --radius: 8px;
     }
 
-    * { box-sizing: border-box; transition: all 0.2s ease; }
+    * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; }
     
-    body {
-      margin: 0;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
+    .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 40px; }
+    .brand { font-weight: 800; font-size: 24px; letter-spacing: -1px; }
 
-    .container { width: 100%; max-width: 1000px; margin: 0 auto; padding: 20px; flex: 1; }
-
-    /* Header */
-    header {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 20px 0; margin-bottom: 30px;
-    }
-    .logo-group { display: flex; align-items: center; gap: 12px; }
-    .logo-icon { 
-        width: 45px; height: 45px; background: linear-gradient(135deg, var(--accent), #a855f7); 
-        border-radius: 12px; display: grid; place-items: center; font-weight: 900; font-size: 24px;
-    }
-    .status-pill {
-        background: var(--panel); padding: 6px 14px; border-radius: 99px; 
-        font-size: 12px; border: 1px solid var(--border); color: var(--muted);
-    }
-
-    /* Common Card Styles */
-    .glass-card {
-      background: var(--panel); backdrop-filter: blur(12px);
-      border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.3);
-    }
-
-    /* Setup Screen */
-    #setupScreen { max-width: 500px; margin: 60px auto; text-align: center; }
-    .input-group { text-align: left; margin-bottom: 20px; }
-    label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 8px; font-weight: 500; }
-    input {
-      width: 100%; padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border);
-      border-radius: 12px; color: white; font-size: 16px; outline: none;
-    }
-    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
-    
-    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 25px; }
-    button {
-      padding: 14px 20px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer;
-      font-size: 15px;
-    }
-    button.primary { background: var(--accent); color: white; }
-    button.primary:hover { background: var(--accent-hover); transform: translateY(-2px); }
-    button.secondary { background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--border); }
-    button.secondary:hover { background: rgba(255,255,255,0.1); }
-
-    /* Game Layout */
-    .game-grid { display: grid; grid-template-columns: 280px 1fr; gap: 24px; }
-    @media (max-width: 850px) { .game-grid { grid-template-columns: 1fr; } }
-
-    /* Sidebar Scoreboard */
-    .sidebar { display: flex; flex-direction: column; gap: 20px; }
-    .player-list { list-style: none; padding: 0; margin: 0; }
-    .player-item {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 12px; background: rgba(255,255,255,0.03); border-radius: 10px; margin-bottom: 8px;
-    }
-    .player-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .player-score { background: var(--accent); padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 800; }
-
-    /* Main Question Area */
-    .question-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; }
-    .timer-circle {
-      width: 70px; height: 70px; border-radius: 50%; border: 4px solid var(--border);
-      display: grid; place-items: center; font-size: 24px; font-weight: 900; position: relative;
-    }
-    .progress-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 20px; }
-    .progress-fill { height: 100%; background: var(--accent); width: 0%; }
-
-    .q-text { font-size: 22px; font-weight: 800; line-height: 1.4; margin-bottom: 25px; }
-    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-    @media (max-width: 500px) { .options-grid { grid-template-columns: 1fr; } }
-    
-    .opt-btn {
-      background: rgba(255,255,255,0.05); border: 2px solid var(--border); text-align: left;
-      padding: 20px; border-radius: 16px; color: var(--text); font-size: 16px; font-weight: 600;
-    }
-    .opt-btn:not(:disabled):hover { border-color: var(--accent); background: rgba(99, 102, 241, 0.1); }
-    .opt-btn.correct { background: rgba(34, 197, 94, 0.2) !important; border-color: var(--success) !important; }
-    .opt-btn.wrong { background: rgba(239, 68, 68, 0.2) !important; border-color: var(--danger) !important; }
-    
-    .feedback-area { margin-top: 20px; padding: 15px; border-radius: 12px; text-align: center; font-weight: 700; font-size: 18px; }
-
-    /* Leaderboard / Winner */
-    .podium { display: flex; justify-content: center; align-items: flex-end; gap: 20px; margin-top: 40px; height: 200px; }
-    .podium-place { background: var(--accent); width: 80px; display: flex; flex-direction: column; align-items: center; border-radius: 12px 12px 0 0; position: relative;}
-    .place-1 { height: 100%; background: linear-gradient(to top, #ca8a04, #fde047); color: #422006; }
-    .place-2 { height: 70%; background: #94a3b8; }
-    .place-3 { height: 50%; background: #92400e; }
-    .winner-name { position: absolute; top: -30px; width: 100px; text-align: center; font-weight: 800; color: white; }
-
+    /* Layout Components */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
     .hidden { display: none !important; }
+
+    /* Inputs & Buttons */
+    .field { margin-bottom: 20px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; color: var(--muted); }
+    input { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 16px; outline: none; transition: border 0.2s; }
+    input:focus { border-color: var(--primary); }
+
+    button { width: 100%; padding: 14px; border-radius: var(--radius); border: none; font-weight: 600; cursor: pointer; font-size: 15px; transition: transform 0.1s; }
+    button:active { transform: scale(0.98); }
+    .btn-main { background: var(--accent); color: white; margin-bottom: 12px; }
+    .btn-sub { background: white; color: var(--text); border: 1px solid var(--border); }
+    .btn-sub:hover { background: #f9fafb; }
+
+    /* Lobby & Players */
+    .lobby-header { text-align: center; margin-bottom: 30px; }
+    .room-code { font-size: 48px; font-weight: 800; color: var(--primary); margin: 10px 0; }
+    .player-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 24px 0; }
+    .player-tag { padding: 10px; border: 1px solid var(--border); border-radius: 6px; text-align: center; font-size: 14px; background: #f9fafb; }
+
+    /* Game UI */
+    .game-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .timer-bar { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; margin-bottom: 30px; }
+    .timer-progress { height: 100%; background: var(--primary); width: 100%; transition: width 0.1s linear; }
+    
+    .question-text { font-size: 22px; font-weight: 600; line-height: 1.4; margin-bottom: 30px; }
+    .options-list { display: grid; gap: 12px; }
+    .opt { text-align: left; background: white; border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); font-size: 16px; }
+    .opt:not(:disabled):hover { background: #f3f4f6; border-color: var(--muted); }
+    .opt.correct { background: var(--success) !important; color: white; border-color: var(--success); }
+    .opt.wrong { background: var(--danger) !important; color: white; border-color: var(--danger); }
+
+    /* Podium */
+    .podium-list { list-style: none; padding: 0; }
+    .podium-item { display: flex; justify-content: space-between; padding: 16px; border-bottom: 1px solid var(--border); font-weight: 600; }
+    .podium-item:first-child { font-size: 24px; color: var(--primary); border-bottom: 2px solid var(--primary); }
   </style>
 </head>
 <body>
 
   <div class="container">
     <header>
-      <div class="logo-group">
-        <div class="logo-icon">M</div>
-        <div>
-          <div style="font-weight: 900; font-size: 20px; letter-spacing: -0.5px;">MASTER MCQ</div>
-          <div style="font-size: 12px; color: var(--muted);">Advanced Learning Interface</div>
-        </div>
-      </div>
-      <div class="status-pill" id="authStatus">Initializing...</div>
+      <div class="brand">MASTER MCQ</div>
+      <div id="authStatus" style="font-size: 12px; color: var(--muted);">Connecting...</div>
     </header>
 
-    <div id="setupScreen" class="glass-card">
-     
-      <div class="input-group">
-        <label>Display Name</label>
-        <input id="nameInput" placeholder="e.g. Alex Smith" />
+    <div id="setupScreen" class="card">
+      <div class="field">
+        <label>Your Name</label>
+        <input id="nameInput" placeholder="Enter name..." />
       </div>
-      
-      <div class="input-group">
-        <label>Room Access Code</label>
+      <div class="field">
+        <label>Room Code (if joining)</label>
         <input id="roomCodeInput" placeholder="ABCD" maxlength="4" style="text-transform: uppercase;" />
       </div>
+      <button class="btn-main" id="joinRoomBtn">Join Game</button>
+      <button class="btn-sub" id="createRoomBtn">Host a New Match</button>
+    </div>
 
-      <div class="btn-row">
-        <button class="primary" id="joinRoomBtn">Join Room</button>
-        <button class="secondary" id="createRoomBtn">Host Game</button>
+    <div id="lobbyScreen" class="card hidden">
+      <div class="lobby-header">
+        <label>Room Code</label>
+        <div class="room-code" id="roomCodeLabel">----</div>
+        <p id="playerCountLabel" style="color: var(--muted);">Waiting for players...</p>
+      </div>
+      
+      <div class="player-grid" id="playersList">
+        </div>
+
+      <div id="hostControls" class="hidden">
+        <button class="btn-main" id="startGameBtn">Start Match</button>
+      </div>
+      <p id="waitingMsg" style="text-align: center; font-size: 14px; color: var(--muted);">Waiting for host to start...</p>
+    </div>
+
+    <div id="gameScreen" class="hidden">
+      <div class="game-top">
+        <div style="font-weight: 800;">Q <span id="qNumLabel">1</span> / 20</div>
+        <div id="timerLabel" style="font-variant-numeric: tabular-nums; font-weight: 800;">30s</div>
+      </div>
+      <div class="timer-bar"><div class="timer-progress" id="timerFill"></div></div>
+      
+      <div class="card">
+        <div class="question-text" id="qText">Loading question...</div>
+        <div class="options-list" id="optionsArea"></div>
       </div>
     </div>
 
-    <div id="gameView" class="game-grid hidden">
-      <aside class="sidebar">
-        <div class="glass-card" style="padding: 20px;">
-          <h4 style="margin: 0 0 15px 0; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Live Leaderboard</h4>
-          <ul id="playersList" class="player-list">
-            </ul>
-        </div>
-        
-        <div id="hostControls" class="glass-card hidden" style="padding: 20px; border-color: var(--accent);">
-            <h4 style="margin: 0 0 10px 0; font-size: 12px; color: var(--accent);">HOST PANEL</h4>
-            <button class="primary" id="startGameBtn" style="width:100%; margin-bottom:8px;">Start Session</button>
-            <button class="secondary" id="endGameBtn" style="width:100%; font-size:12px;">End Early</button>
-        </div>
-      </aside>
-
-      <main>
-        <div id="lobbyArea" class="glass-card" style="text-align: center;">
-            <div style="font-size: 14px; color: var(--muted);">ROOM CODE</div>
-            <div id="roomCodeLabel" style="font-size: 64px; font-weight: 900; color: var(--accent); margin: 10px 0;">----</div>
-            <h3>Waiting for Host to start...</h3>
-            <p id="roomStatusLabel" style="color: var(--muted);">You are connected.</p>
-        </div>
-
-        <div id="questionArea" class="glass-card hidden">
-            <div class="question-header">
-                <div>
-                    <span id="qNumLabel" style="font-weight: 900; font-size: 24px; color: var(--accent);">1</span>
-                    <span style="color: var(--muted); font-weight: 600;"> / <span id="qTotalLabel">20</span></span>
-                </div>
-                <div class="timer-circle" id="timerText">30</div>
-            </div>
-            <div class="progress-bar"><div class="progress-fill" id="timerFill"></div></div>
-            
-            <div class="q-text" id="qText">Question loading...</div>
-            
-            <div class="options-grid" id="optionsArea">
-                </div>
-
-            <div id="feedbackArea" class="feedback-area hidden"></div>
-        </div>
-
-        <div id="resultsArea" class="glass-card hidden" style="text-align: center;">
-            <h2 style="font-size: 32px;">Game Finished!</h2>
-            <div class="podium" id="podiumArea">
-                </div>
-            <div style="margin-top: 40px;">
-                <button class="primary" onclick="location.reload()">Return Home</button>
-            </div>
-        </div>
-      </main>
+    <div id="resultScreen" class="card hidden">
+      <h2 style="text-align: center;">Match Results</h2>
+      <div class="podium-list" id="podiumArea"></div>
+      <button class="btn-main" style="margin-top: 30px;" onclick="location.reload()">Back to Home</button>
     </div>
   </div>
 
