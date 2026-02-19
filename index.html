@@ -3,123 +3,105 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Master MCQ | Simple Learning</title>
+  <title>Master MCQ | Minimalist</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #fdfdfd;
-      --surface: #ffffff;
-      --text: #1a1a1a;
-      --muted: #666666;
-      --accent: #000000;
+      --bg: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
       --primary: #2563eb;
-      --success: #16a34a;
-      --danger: #dc2626;
-      --border: #e5e7eb;
-      --radius: 8px;
+      --border: #f3f4f6;
+      --radius: 12px;
     }
 
     * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
-    body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; }
+    body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
     
-    .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
-    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 40px; }
-    .brand { font-weight: 800; font-size: 24px; letter-spacing: -1px; }
+    /* Live Score Card - Left Corner */
+    #liveScoreCard {
+      position: fixed; top: 20px; left: 20px; width: 180px;
+      background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); z-index: 100;
+    }
+    .score-entry { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; font-weight: 600; }
+    .score-entry:last-child { margin-bottom: 0; }
 
-    /* Layout Components */
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .container { max-width: 650px; margin: 0 auto; padding: 60px 20px; }
+    .card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 30px; }
     .hidden { display: none !important; }
 
     /* Inputs & Buttons */
-    .field { margin-bottom: 20px; }
-    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; color: var(--muted); }
-    input { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 16px; outline: none; transition: border 0.2s; }
-    input:focus { border-color: var(--primary); }
+    label { display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; }
+    input { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; margin-bottom: 20px; background: #fafafa; outline: none; }
+    input:focus { border-color: var(--primary); background: #fff; }
 
-    button { width: 100%; padding: 14px; border-radius: var(--radius); border: none; font-weight: 600; cursor: pointer; font-size: 15px; transition: transform 0.1s; }
-    button:active { transform: scale(0.98); }
-    .btn-main { background: var(--accent); color: white; margin-bottom: 12px; }
-    .btn-sub { background: white; color: var(--text); border: 1px solid var(--border); }
-    .btn-sub:hover { background: #f9fafb; }
-
-    /* Lobby & Players */
-    .lobby-header { text-align: center; margin-bottom: 30px; }
-    .room-code { font-size: 48px; font-weight: 800; color: var(--primary); margin: 10px 0; }
-    .player-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 24px 0; }
-    .player-tag { padding: 10px; border: 1px solid var(--border); border-radius: 6px; text-align: center; font-size: 14px; background: #f9fafb; }
-
-    /* Game UI */
-    .game-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .timer-bar { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; margin-bottom: 30px; }
-    .timer-progress { height: 100%; background: var(--primary); width: 100%; transition: width 0.1s linear; }
+    button { width: 100%; padding: 14px; border-radius: 8px; border: none; font-weight: 700; cursor: pointer; transition: 0.2s; }
+    .btn-black { background: #000; color: #fff; margin-bottom: 10px; }
+    .btn-black:hover { background: #222; }
+    .btn-outline { background: #fff; color: #000; border: 1px solid #e5e7eb; }
     
-    .question-text { font-size: 22px; font-weight: 600; line-height: 1.4; margin-bottom: 30px; }
-    .options-list { display: grid; gap: 12px; }
-    .opt { text-align: left; background: white; border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); font-size: 16px; }
-    .opt:not(:disabled):hover { background: #f3f4f6; border-color: var(--muted); }
-    .opt.correct { background: var(--success) !important; color: white; border-color: var(--success); }
-    .opt.wrong { background: var(--danger) !important; color: white; border-color: var(--danger); }
+    /* Game Elements */
+    .room-code-display { font-size: 40px; font-weight: 800; color: var(--primary); text-align: center; margin: 10px 0; }
+    .timer-wrap { height: 4px; background: #f3f4f6; border-radius: 2px; margin: 20px 0; overflow: hidden; }
+    .timer-bar { height: 100%; background: var(--primary); width: 100%; }
 
-    /* Podium */
-    .podium-list { list-style: none; padding: 0; }
-    .podium-item { display: flex; justify-content: space-between; padding: 16px; border-bottom: 1px solid var(--border); font-weight: 600; }
-    .podium-item:first-child { font-size: 24px; color: var(--primary); border-bottom: 2px solid var(--primary); }
+    .q-text { font-size: 20px; font-weight: 700; line-height: 1.4; margin-bottom: 25px; }
+    .opt-list { display: grid; gap: 10px; }
+    .opt-btn { text-align: left; padding: 16px; border: 1px solid var(--border); background: #fff; border-radius: 10px; font-weight: 600; }
+    .opt-btn:not(:disabled):hover { border-color: var(--primary); background: #f8faff; }
+    .opt-btn.correct { background: #dcfce7 !important; border-color: #22c55e !important; color: #166534; }
+    .opt-btn.wrong { background: #fee2e2 !important; border-color: #ef4444 !important; color: #991b1b; }
+
+    .podium-row { padding: 12px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; }
   </style>
 </head>
 <body>
 
-  <div class="container">
-    <header>
-      <div class="brand">MASTER MCQ</div>
-      <div id="authStatus" style="font-size: 12px; color: var(--muted);">Connecting...</div>
-    </header>
+  <div id="liveScoreCard" class="hidden">
+    <label style="margin-bottom:10px; display:block">Live Scores</label>
+    <div id="scoreList"></div>
+  </div>
 
+  <div class="container">
     <div id="setupScreen" class="card">
-      <div class="field">
-        <label>Your Name</label>
-        <input id="nameInput" placeholder="Enter name..." />
-      </div>
-      <div class="field">
-        <label>Room Code (if joining)</label>
-        <input id="roomCodeInput" placeholder="ABCD" maxlength="4" style="text-transform: uppercase;" />
-      </div>
-      <button class="btn-main" id="joinRoomBtn">Join Game</button>
-      <button class="btn-sub" id="createRoomBtn">Host a New Match</button>
+      <h2 style="margin-top:0; letter-spacing:-1px">Master MCQ</h2>
+      <label>Display Name</label>
+      <input id="nameInput" placeholder="Enter your name" />
+      <label>Room Code</label>
+      <input id="roomCodeInput" placeholder="ABCD" maxlength="4" style="text-transform:uppercase" />
+      <button class="btn-black" id="joinRoomBtn">Join Game</button>
+      <button class="btn-outline" id="createRoomBtn">Create Room</button>
     </div>
 
     <div id="lobbyScreen" class="card hidden">
-      <div class="lobby-header">
+      <div style="text-align:center">
         <label>Room Code</label>
-        <div class="room-code" id="roomCodeLabel">----</div>
-        <p id="playerCountLabel" style="color: var(--muted);">Waiting for players...</p>
+        <div class="room-code-display" id="roomCodeLabel">----</div>
+        <p id="playerStatus" style="color:var(--muted); font-size:14px">Waiting for players...</p>
       </div>
-      
-      <div class="player-grid" id="playersList">
-        </div>
-
+      <div id="playersGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:20px 0"></div>
       <div id="hostControls" class="hidden">
-        <button class="btn-main" id="startGameBtn">Start Match</button>
+        <button class="btn-black" id="startGameBtn">Start Match</button>
       </div>
-      <p id="waitingMsg" style="text-align: center; font-size: 14px; color: var(--muted);">Waiting for host to start...</p>
     </div>
 
     <div id="gameScreen" class="hidden">
-      <div class="game-top">
-        <div style="font-weight: 800;">Q <span id="qNumLabel">1</span> / 20</div>
-        <div id="timerLabel" style="font-variant-numeric: tabular-nums; font-weight: 800;">30s</div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-end">
+        <div style="font-weight:800; font-size:14px">Question <span id="qNum">1</span>/20</div>
+        <div id="timerText" style="font-weight:800; color:var(--primary)">15s</div>
       </div>
-      <div class="timer-bar"><div class="timer-progress" id="timerFill"></div></div>
-      
+      <div class="timer-wrap"><div class="timer-bar" id="timerFill"></div></div>
       <div class="card">
-        <div class="question-text" id="qText">Loading question...</div>
-        <div class="options-list" id="optionsArea"></div>
+        <div class="q-text" id="qText">Question?</div>
+        <div class="opt-list" id="optionsArea"></div>
       </div>
     </div>
 
     <div id="resultScreen" class="card hidden">
-      <h2 style="text-align: center;">Match Results</h2>
-      <div class="podium-list" id="podiumArea"></div>
-      <button class="btn-main" style="margin-top: 30px;" onclick="location.reload()">Back to Home</button>
+      <h2 style="text-align:center">Final Results</h2>
+      <div id="podiumArea"></div>
+      <button class="btn-black" style="margin-top:20px" onclick="location.reload()">New Game</button>
     </div>
   </div>
 
