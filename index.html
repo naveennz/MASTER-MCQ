@@ -5,23 +5,21 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Master MCQ</title>
 
-  <!-- Google Font (clean, modern like screenshots) -->
+  <!-- Google Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800;900&display=swap" rel="stylesheet">
 
   <style>
     :root{
-      /* Screenshot vibe (teal patterned bg + dark UI) */
       --bgA:#0ea58f;
       --bgB:#0b8f7b;
       --panel:#eef2f4;
-      --panel2:#f6f8fa;
-      --dark:#2c3f52;      /* sidebar */
-      --dark2:#374e64;     /* topbar */
+      --dark:#2a3f54;
+      --dark2:#374e64;
+
       --text:#122033;
-      --muted:rgba(18,32,51,.65);
-      --line:rgba(18,32,51,.12);
+      --white:#fff;
 
       --btn:#23b05a;
       --btn2:#1f9a4f;
@@ -31,11 +29,6 @@
 
       --shadow: 0 24px 60px rgba(0,0,0,.22);
       --soft: 0 10px 24px rgba(0,0,0,.12);
-
-      --r:10px;
-      --r2:14px;
-
-      --white:#fff;
     }
 
     *{box-sizing:border-box}
@@ -58,7 +51,7 @@
 
     .hidden{display:none !important;}
 
-    /* App frame (like screenshots) */
+    /* App frame */
     .frame{
       width:min(1180px, 100%);
       height:min(660px, 100%);
@@ -94,8 +87,17 @@
       font-weight:900;
       color:#152436;
     }
-    .pName{font-weight:900;letter-spacing:.2px}
-    .pSub{font-size:12px;color:rgba(255,255,255,.7);margin-top:2px}
+    .pName{
+      font-weight:900;
+      letter-spacing:.2px;
+      line-height:1.05;
+    }
+    .pSub{
+      font-size:12px;
+      color:rgba(255,255,255,.7);
+      margin-top:4px;
+      font-weight:800;
+    }
     .lvl{
       margin-left:auto;
       font-size:12px;
@@ -104,6 +106,26 @@
       border-radius:999px;
       background: rgba(255,255,255,.12);
       border:1px solid rgba(255,255,255,.18);
+    }
+
+    /* NEW: Total score (make it white/visible) */
+    .totalScore{
+      margin-top:10px;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      color:#fff;
+    }
+    .totalScore .label{
+      font-size:12px;
+      font-weight:900;
+      color:rgba(255,255,255,.85);
+    }
+    .totalScore .value{
+      font-size:28px;
+      font-weight:1000;
+      color:#ffffff;
+      line-height:1;
     }
 
     .sideSection{
@@ -160,7 +182,7 @@
     }
     .playerMeta{display:flex;flex-direction:column;gap:1px}
     .playerMeta b{font-size:13px}
-    .playerMeta span{font-size:11px;color:rgba(255,255,255,.65)}
+    .playerMeta span{font-size:11px;color:rgba(255,255,255,.72);font-weight:800}
     .points{
       margin-left:auto;
       font-weight:900;
@@ -171,27 +193,49 @@
       border:1px solid rgba(255,255,255,.15);
     }
 
+    /* Match ID area */
     .roomBox{
       margin-top:auto;
       padding:14px 16px 16px;
       border-top:1px solid rgba(255,255,255,.08);
     }
-    .roomLabel{font-size:12px;color:rgba(255,255,255,.7);font-weight:900}
+    .roomLabel{
+      font-size:12px;
+      color:rgba(255,255,255,.85);
+      font-weight:1000;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    /* NEW: show full room id text too */
+    .roomLabel small{
+      font-size:12px;
+      font-weight:1000;
+      color:#ffffff;
+      padding:4px 10px;
+      border-radius:999px;
+      background: rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.14);
+      white-space:nowrap;
+    }
+
     .roomCode{
-      margin-top:8px;
+      margin-top:10px;
       display:flex;
       gap:8px;
       align-items:center;
     }
     .digit{
-      width:42px;height:42px;
-      border-radius:10px;
+      width:48px;height:48px;
+      border-radius:12px;
       background: rgba(0,0,0,.18);
       border:1px solid rgba(255,255,255,.14);
       display:grid;place-items:center;
       font-weight:1000;
       letter-spacing:1px;
       font-size:18px;
+      color:#fff;
     }
 
     /* Main area */
@@ -259,13 +303,7 @@
       text-align:center;
     }
 
-    .topRight{
-      margin-left:auto;
-      display:flex;
-      gap:10px;
-      align-items:center;
-    }
-
+    .topRight{margin-left:auto;display:flex;gap:10px;align-items:center}
     .btn{
       border:none;
       cursor:pointer;
@@ -277,11 +315,7 @@
       box-shadow: 0 10px 18px rgba(0,0,0,.20);
     }
     .btn:active{transform: translateY(1px)}
-    .btn.green{
-      background: linear-gradient(180deg, var(--btn), var(--btn2));
-    }
 
-    /* Center area */
     .center{
       flex:1;
       display:flex;
@@ -291,7 +325,81 @@
       background: var(--panel);
     }
 
-    /* Lobby panel (like screenshot 1) */
+    /* Home */
+    .homeWrap{
+      width:min(720px, 100%);
+      background:#ffffff;
+      border-radius: 8px;
+      border:1px solid rgba(10,25,40,.10);
+      box-shadow: var(--soft);
+      overflow:hidden;
+    }
+    .homeHead{
+      padding:18px 18px 14px;
+      background: linear-gradient(180deg, #3a556e, #2f475e);
+      color:white;
+    }
+    .homeHead h1{margin:0;font-weight:1000;letter-spacing:.2px;font-size:26px}
+    .homeHead p{margin:8px 0 0;color:rgba(255,255,255,.78);font-weight:800;font-size:13px}
+    .homeBody{padding:16px 18px 18px;display:grid;gap:12px}
+    .homeActions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .homeActions button{flex:1}
+    .field{
+      background:#fff;
+      border:1px solid rgba(10,25,40,.12);
+      border-radius: 8px;
+      padding:10px 12px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .field label{
+      font-size:12px;
+      font-weight:1000;
+      color:rgba(44,63,82,.75);
+    }
+    .field input{
+      border:none;
+      outline:none;
+      font-weight:900;
+      font-size:14px;
+      background:transparent;
+      color:#1a2d42;
+    }
+    .field input::placeholder{color:rgba(26,45,66,.35)}
+    .bigGreen{
+      padding:14px 18px;
+      border-radius: 6px;
+      border:none;
+      cursor:pointer;
+      color:white;
+      font-weight:1000;
+      background: linear-gradient(180deg, var(--btn), var(--btn2));
+      box-shadow: 0 12px 20px rgba(0,0,0,.18);
+    }
+    .bigGreen:disabled{opacity:.6;cursor:not-allowed}
+    .smallBtn{
+      padding:12px 14px;
+      border-radius: 6px;
+      border:1px solid rgba(10,25,40,.14);
+      background:#fff;
+      cursor:pointer;
+      font-weight:1000;
+      color:#2c3f52;
+      box-shadow: 0 10px 16px rgba(0,0,0,.08);
+      white-space:nowrap;
+    }
+    .miniNote{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      font-size:12px;
+      color:rgba(44,63,82,.72);
+      font-weight:900;
+    }
+    .dot2{width:9px;height:9px;border-radius:99px;background:#3ce38f;box-shadow:0 0 0 3px rgba(60,227,143,.18)}
+
+    /* Lobby */
     .lobbyWrap{
       width:min(760px, 100%);
       background: var(--white);
@@ -316,52 +424,9 @@
       font-weight:900;
       margin-left:8px;
     }
-    .lobbyBody{
-      padding:16px;
-      display:grid;
-      gap:14px;
-    }
-    .row2{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
-    }
-    @media (max-width: 860px){
-      .frame{grid-template-columns: 1fr}
-      .side{display:none}
-      .row2{grid-template-columns:1fr}
-      body{padding:14px 10px}
-    }
-
-    .field{
-      background:#fff;
-      border:1px solid rgba(10,25,40,.12);
-      border-radius: 8px;
-      padding:10px 12px;
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-    }
-    .field label{
-      font-size:12px;
-      font-weight:1000;
-      color:rgba(44,63,82,.75);
-    }
-    .field input{
-      border:none;
-      outline:none;
-      font-weight:900;
-      font-size:14px;
-      background:transparent;
-      color:#1a2d42;
-    }
-    .field input::placeholder{color:rgba(26,45,66,.35)}
-
-    .modeGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
-    }
+    .lobbyBody{padding:16px;display:grid;gap:14px}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .modeGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .modeCard{
       border:1px solid rgba(10,25,40,.12);
       border-radius: 8px;
@@ -378,7 +443,6 @@
       outline: 2px solid rgba(255,135,60,.65);
       border-color: rgba(255,135,60,.35);
     }
-
     .lobbyFooter{
       display:flex;
       gap:12px;
@@ -388,31 +452,8 @@
       border-top:1px solid rgba(10,25,40,.10);
     }
     .lobbyFooter .spacer{flex:1}
-    .bigGreen{
-      flex:1;
-      padding:14px 18px;
-      border-radius: 6px;
-      border:none;
-      cursor:pointer;
-      color:white;
-      font-weight:1000;
-      background: linear-gradient(180deg, var(--btn), var(--btn2));
-      box-shadow: 0 12px 20px rgba(0,0,0,.18);
-    }
-    .bigGreen:disabled{opacity:.6;cursor:not-allowed}
-    .smallBtn{
-      padding:12px 14px;
-      border-radius: 6px;
-      border:1px solid rgba(10,25,40,.14);
-      background:#fff;
-      cursor:pointer;
-      font-weight:1000;
-      color:#2c3f52;
-      box-shadow: 0 10px 16px rgba(0,0,0,.08);
-      white-space:nowrap;
-    }
 
-    /* Question panel (like screenshot 2/3/4/5) */
+    /* Game */
     .qWrap{
       width:min(820px, 100%);
       display:flex;
@@ -433,7 +474,6 @@
       color:#2c3f52;
       font-size:12px;
     }
-
     .qCard{
       width:100%;
       border-radius: 10px;
@@ -447,16 +487,6 @@
       line-height:1.35;
       font-size:18px;
     }
-    .qCard.altRed{
-      background: linear-gradient(180deg, #d65a5a, #b74747);
-    }
-    .qCard.altBlue{
-      background: linear-gradient(180deg, #4aa3df, #2e7fbc);
-    }
-    .qCard.altGold{
-      background: linear-gradient(180deg, #c69a58, #a77e41);
-    }
-
     .answers{
       width:100%;
       display:grid;
@@ -482,7 +512,6 @@
     .ansBtn:hover{transform: translateY(-1px)}
     .ansBtn:active{transform: translateY(0px)}
     .ansBtn:disabled{opacity:.8;cursor:not-allowed;transform:none}
-
     .keyTag{
       position:absolute;
       bottom:8px;
@@ -496,7 +525,6 @@
       border:1px solid rgba(44,63,82,.15);
       color:#2c3f52;
     }
-
     .ansBtn.correct{
       background: rgba(39,199,111,.16);
       border-color: rgba(39,199,111,.55);
@@ -507,10 +535,7 @@
       border-color: rgba(232,74,74,.55);
       box-shadow: 0 12px 18px rgba(232,74,74,.18);
     }
-    .ansBtn.selected{
-      outline: 2px solid rgba(44,63,82,.35);
-    }
-
+    .ansBtn.selected{outline:2px solid rgba(44,63,82,.35)}
     .hint{
       font-size:12px;
       font-weight:900;
@@ -524,47 +549,7 @@
       text-align:center;
     }
 
-    /* Home screen (simple) */
-    .homeWrap{
-      width:min(720px, 100%);
-      background:#ffffff;
-      border-radius: 8px;
-      border:1px solid rgba(10,25,40,.10);
-      box-shadow: var(--soft);
-      overflow:hidden;
-    }
-    .homeHead{
-      padding:18px 18px 14px;
-      background: linear-gradient(180deg, #3a556e, #2f475e);
-      color:white;
-    }
-    .homeHead h1{
-      margin:0;
-      font-weight:1000;
-      letter-spacing:.2px;
-      font-size:26px;
-    }
-    .homeHead p{
-      margin:8px 0 0;
-      color:rgba(255,255,255,.78);
-      font-weight:800;
-      font-size:13px;
-    }
-    .homeBody{padding:16px 18px 18px;display:grid;gap:12px}
-    .homeActions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-    .homeActions button{flex:1}
-
-    .miniNote{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      font-size:12px;
-      color:rgba(44,63,82,.72);
-      font-weight:900;
-    }
-    .dot2{width:9px;height:9px;border-radius:99px;background:#3ce38f;box-shadow:0 0 0 3px rgba(60,227,143,.18)}
-
-    /* Results panel (like screenshot 6) */
+    /* Results */
     .resultWrap{
       width:min(760px, 100%);
       background:#ffffff;
@@ -583,27 +568,6 @@
       font-weight:1000;
     }
     .resultBody{padding:16px}
-    .table{
-      width:100%;
-      border-collapse: collapse;
-      overflow:hidden;
-      border-radius: 8px;
-      border:1px solid rgba(10,25,40,.10);
-    }
-    .table th, .table td{
-      padding:12px 12px;
-      text-align:left;
-      border-bottom:1px solid rgba(10,25,40,.10);
-      font-weight:900;
-      color:#2c3f52;
-    }
-    .table th{background:#f1f4f7;font-weight:1000}
-    .table td small{display:block;color:rgba(44,63,82,.65);font-weight:900;margin-top:3px}
-    .rank{
-      font-weight:1000;
-      color:#ff6b3a;
-    }
-
     .resultFooter{
       padding:14px 16px;
       display:flex;
@@ -614,10 +578,14 @@
       flex-wrap:wrap;
     }
 
-    /* Mobile tweaks */
+    @media (max-width: 860px){
+      .frame{grid-template-columns: 1fr}
+      .side{display:none}
+      .row2{grid-template-columns:1fr}
+      body{padding:14px 10px}
+    }
     @media (max-width: 540px){
       .answers{grid-template-columns:1fr}
-      .topLeft{min-width:unset}
       .progress{display:none}
       .frame{height:auto}
       .center{padding:14px}
@@ -632,10 +600,19 @@
     <aside class="side">
       <div class="profile">
         <div class="avatar">🙂</div>
-        <div>
+
+        <div style="min-width:0">
+          <!-- UPDATED: this will show name after input (app.js should set sidebarName) -->
           <div class="pName" id="sidebarName">PLAYER</div>
           <div class="pSub">Beginner</div>
+
+          <!-- UPDATED: Total score visible (white) -->
+          <div class="totalScore">
+            <div class="label">Total</div>
+            <div class="value" id="totalScore">0</div>
+          </div>
         </div>
+
         <div class="lvl" id="levelPill">Level 1/5</div>
       </div>
 
@@ -645,9 +622,7 @@
           <div class="badge"><span class="dot"></span><span id="lobbyStatus">waiting</span></div>
         </div>
 
-        <!-- This will be filled by app.js with player names. -->
         <div id="scoreList">
-          <!-- fallback -->
           <ul class="playersList">
             <li class="playerRow">
               <div class="miniAvatar">P</div>
@@ -658,8 +633,12 @@
         </div>
       </div>
 
+      <!-- UPDATED: Match ID shows room id text too -->
       <div class="roomBox">
-        <div class="roomLabel">MATCH ID</div>
+        <div class="roomLabel">
+          <span>MATCH ID</span>
+          <small id="roomIdText">----</small>
+        </div>
         <div class="roomCode" id="roomDigits">
           <div class="digit">-</div>
           <div class="digit">-</div>
@@ -672,7 +651,7 @@
     <!-- MAIN -->
     <main class="main">
 
-      <!-- TOP BAR (shows question status like screenshot) -->
+      <!-- TOP BAR -->
       <div class="topbar">
         <div class="topLeft">
           <div class="big" id="topTitle">Match lobby</div>
@@ -689,10 +668,10 @@
         </div>
       </div>
 
-      <!-- CENTER CONTENT -->
+      <!-- CENTER -->
       <div class="center">
 
-        <!-- HOME SCREEN -->
+        <!-- HOME -->
         <section id="homeScreen" class="homeWrap">
           <div class="homeHead">
             <h1>Master MCQ Rooms</h1>
@@ -720,7 +699,7 @@
           </div>
         </section>
 
-        <!-- LOBBY SCREEN (screenshot 1 vibe) -->
+        <!-- LOBBY -->
         <section id="lobbyScreen" class="lobbyWrap hidden">
           <div class="lobbyHead">
             <div>
@@ -774,7 +753,7 @@
           </div>
         </section>
 
-        <!-- GAME SCREEN (screenshot 2/3/4/5 vibe) -->
+        <!-- GAME -->
         <section id="gameScreen" class="qWrap hidden">
           <div class="catChip" id="phaseChip">
             <span id="phasePill">question</span>
@@ -784,14 +763,12 @@
             <div id="questionText">—</div>
           </div>
 
-          <div class="answers" id="optionsArea">
-            <!-- Buttons created by app.js -->
-          </div>
+          <div class="answers" id="optionsArea"></div>
 
           <div class="hint" id="answerInfo">Choose an answer</div>
         </section>
 
-        <!-- RESULTS SCREEN (screenshot 6 vibe) -->
+        <!-- RESULTS -->
         <section id="resultsScreen" class="resultWrap hidden">
           <div class="resultHead">
             <div>🏆 Match finished</div>
@@ -814,15 +791,10 @@
     </main>
   </div>
 
-  <!-- Kahoot-like key labels -->
-  <script>
-    // No logic here; just a helper to map A/B/C/D label display if needed by CSS.
-  </script>
-
   <script type="module" src="./app.js"></script>
 
   <script>
-    // Extra small UI helpers (no firebase)
+    // Copy room code
     const copyBtn = document.getElementById("copyCodeBtn");
     if(copyBtn){
       copyBtn.addEventListener("click", async ()=>{
@@ -838,13 +810,25 @@
       });
     }
 
+    // Leave match (simple reload)
     const leaveBtn = document.getElementById("leaveBtn");
     if(leaveBtn){
-      leaveBtn.addEventListener("click", ()=>{
-        // Simple reload to exit room (safe for GitHub Pages)
-        location.reload();
-      });
+      leaveBtn.addEventListener("click", ()=> location.reload());
     }
+
+    /**
+     * NOTE for your app.js:
+     * - When user enters name, set:
+     *    document.getElementById("sidebarName").textContent = name;
+     *
+     * - When room code exists, set BOTH:
+     *    document.getElementById("roomIdText").textContent = roomCode;   // full text pill
+     *    document.getElementById("roomCodePill").textContent = roomCode; // lobby badge
+     *    and update #roomDigits to show 4 digits/letters
+     *
+     * - When total score changes, set:
+     *    document.getElementById("totalScore").textContent = total;
+     */
   </script>
 </body>
 </html>
