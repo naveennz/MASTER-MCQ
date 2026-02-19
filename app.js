@@ -1,15 +1,30 @@
-import { RAW_MCQ_TEXT } from "./rawQuestions.js";
+// app.js (Firebase + Firestore realtime 1v1 MCQ)
 
+// Firebase (CDN modules)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import {
-  getFirestore, doc, setDoc, getDoc, collection, onSnapshot,
-  updateDoc, serverTimestamp, writeBatch, runTransaction, query, orderBy, getDocs, arrayUnion
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+  getAuth,
+  onAuthStateChanged,
+  signInAnonymously
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
-/* =========================
-   CONFIG
-========================= */
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  runTransaction,
+  serverTimestamp,
+  onSnapshot,
+  collection,
+  query,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+/* -----------------------------
+   0) Firebase Config (YOUR PROJECT)
+-------------------------------- */
 const firebaseConfig = {
   apiKey: "AIzaSyDg4OZWHV2AAR6_h40oQ3_16KxS5gmuFtI",
   authDomain: "master-mcq-2ee53.firebaseapp.com",
@@ -20,21 +35,13 @@ const firebaseConfig = {
   measurementId: "G-SNP025BS5G"
 };
 
-const QUESTION_MS = 20000;     // ✅ 20s question time (updated)
-const REVEAL_MS   = 5000;      // 5s reveal
-const Q_PER_LEVEL = 20;
-const MAX_LEVELS  = 5;         // ✅ 5 levels = 100 questions total
-
-/* =========================
-   FIREBASE INIT
-========================= */
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
 const auth = getAuth(app);
+const db = getFirestore(app);
 
-/* =========================
-   UI HELPERS
-========================= */
+/* -----------------------------
+   1) DOM
+-------------------------------- */
 const $ = (id) => document.getElementById(id);
 
 const homeScreen = $("homeScreen");
@@ -45,782 +52,902 @@ const resultsScreen = $("resultsScreen");
 const authStatus = $("authStatus");
 const nameInput = $("nameInput");
 const roomCodeInput = $("roomCodeInput");
+
 const hostBtn = $("hostBtn");
 const joinBtn = $("joinBtn");
-
-const lobbyCode = $("lobbyCode");
-const lobbyStatus = $("lobbyStatus");
-const lobbyPlayers = $("lobbyPlayers");
-const lobbyHostControls = $("lobbyHostControls");
 const startBtn = $("startBtn");
+const rematchBtn = $("rematchBtn");
+const rematchLabel = $("rematchLabel");
+const backHomeBtn = $("backHomeBtn");
 
-const scoreList = $("scoreList");
-const qNum = $("qNum");
-const phaseText = $("phaseText");
+const sidebarName = $("sidebarName");
+const totalScoreEl = $("totalScore");
+const levelPill = $("levelPill");
 
-const roomCodePill = $("roomCodePill");
-const phasePill = $("phasePill");
-const timerFill = $("timerFill");
+const lobbyStatus = $("lobbyStatus");
+const topTitle = $("topTitle");
+const topSub = $("topSub");
 const timerText = $("timerText");
+const timerFill = $("timerFill");
 
+const roomIdText = $("roomIdText");
+const roomDigits = $("roomDigits");
+const roomCodePill = $("roomCodePill");
+
+const playersList = $("playersList");
+const lobbyPlayers = $("lobbyPlayers");
+const lobbyHint = $("lobbyHint");
+
+const phasePill = $("phasePill");
 const questionText = $("questionText");
 const optionsArea = $("optionsArea");
 const answerInfo = $("answerInfo");
 
 const leaderboardBox = $("leaderboardBox");
-const backHomeBtn = $("backHomeBtn");
+const resultTitle = $("resultTitle");
+const resultTime = $("resultTime");
 
-// ✅ new (optional) IDs if you add them to HTML (safe if missing)
-const levelPill = $("levelPill");                 // shows "Level 1/5"
-const rematchBtn = $("rematchBtn");               // button in results
-const rematchLabel = $("rematchLabel");           // span inside button
+/* -----------------------------
+   2) Game Settings
+-------------------------------- */
+const LEVELS = 5;
+const QUESTIONS_PER_LEVEL = 20;
+const QUESTION_SECONDS = 20;
+const REVEAL_SECONDS = 5;
+const POINTS_PER_CORRECT = 10;
 
-function show(screen) {
+/* -----------------------------
+   3) Questions Bank
+   ✅ Replace this with your 100 MCQs if needed.
+   Each question: { id, q, options: [A,B,C,D], answerIndex }
+-------------------------------- */
+const QUESTIONS = buildQuestionsFromYourBank();
+
+// NOTE: If you want, you can replace the function above with your own array directly.
+// const QUESTIONS = [ {id:"q1", q:"...", options:[".."], answerIndex:0 }, ... ];
+
+/* -----------------------------
+   4) State
+-------------------------------- */
+let uid = null;
+let me = { name: "PLAYER" };
+
+let currentRoomCode = null;
+let roomUnsub = null;
+let playersUnsub = null;
+
+let roomState = null;
+let playersState = [];
+
+let tickInterval = null;
+
+/* -----------------------------
+   5) Helpers
+-------------------------------- */
+function showScreen(which){
   homeScreen.classList.add("hidden");
   lobbyScreen.classList.add("hidden");
   gameScreen.classList.add("hidden");
   resultsScreen.classList.add("hidden");
-  screen.classList.remove("hidden");
+  which.classList.remove("hidden");
 }
 
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function setRoomCodeUI(roomCode){
+  const code = (roomCode || "").toString().toUpperCase();
+
+  if (roomCodePill) roomCodePill.textContent = code || "----";
+  if (roomIdText) roomIdText.textContent = code || "----";
+
+  if (roomDigits){
+    const chars = (code || "----").padEnd(4, "-").slice(0, 4).split("");
+    roomDigits.innerHTML = chars.map(ch => `<div class="digit">${ch}</div>`).join("");
+  }
 }
 
-/* =========================
-   AUTH
-========================= */
-let uid = null;
+function setSidebarName(name){
+  const safe = (name || "PLAYER").trim();
+  sidebarName.textContent = safe;
+}
 
-onAuthStateChanged(auth, (user) => {
-  if (user) {
+function setLevelUI(level){
+  levelPill.textContent = `Level ${level}/${LEVELS}`;
+}
+
+function nowMs(){ return Date.now(); }
+
+function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+function pickRandom(arr, n){
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
+
+function formatPlayersJoined(list){
+  if(!list.length) return "No players yet";
+  return list.map(p => `• ${p.name}${p.isHost ? " (Host)" : ""}`).join("\n");
+}
+
+function isHost(){
+  const p = playersState.find(x => x.uid === uid);
+  return !!p?.isHost;
+}
+
+function myPlayer(){
+  return playersState.find(x => x.uid === uid) || null;
+}
+
+function getQuestionById(qid){
+  return QUESTIONS.find(q => q.id === qid) || null;
+}
+
+/* -----------------------------
+   6) Firebase Auth
+-------------------------------- */
+async function initAuth(){
+  authStatus.textContent = "Signing in…";
+  await signInAnonymously(auth);
+  onAuthStateChanged(auth, (user)=>{
+    if(!user) return;
     uid = user.uid;
-    authStatus.textContent = `Signed in: ${uid.slice(0, 6)}…`;
-  }
-});
-await signInAnonymously(auth);
-
-/* =========================
-   PARSE MCQ TEXT
-========================= */
-function parseMcqText(raw) {
-  const cut = raw.indexOf("## 📊");
-  const text = cut > -1 ? raw.slice(0, cut) : raw;
-
-  const blocks = [...text.matchAll(/\*\*(\d+)\.\s([\s\S]*?)\*\*([\s\S]*?)\*\*Answer:\s*([ABCD])\*\*/g)];
-  const qs = [];
-
-  for (const m of blocks) {
-    const id = Number(m[1]);
-    const q = m[2].trim();
-    const opts = [...m[3].matchAll(/-\s*[ABCD]\)\s*(.*)/g)].map(x => x[1].trim());
-    const answerIndex = { A:0, B:1, C:2, D:3 }[m[4].trim()];
-    if (opts.length === 4) qs.push({ id, question: q, options: opts, answerIndex });
-  }
-  return qs.sort((a,b) => a.id - b.id);
+    authStatus.textContent = "Signed in (Anonymous)";
+  });
 }
 
-const BANK = parseMcqText(RAW_MCQ_TEXT);
-console.log("Loaded questions:", BANK.length);
-
-/* =========================
-   GAME STATE
-========================= */
-let currentRoomId = null;
-let currentRoomCode = null;
-let isHost = false;
-
-let currentQuestionDoc = null;
-let tick = null;
-
-let lastStartAtMs = null;
-let lastRevealAtMs = null;
-
-function stopTick(){
-  if(tick) clearInterval(tick);
-  tick = null;
+/* -----------------------------
+   7) Room / Player Docs
+-------------------------------- */
+function roomRef(roomCode){
+  return doc(db, "rooms", roomCode);
+}
+function playerRef(roomCode, playerUid){
+  return doc(db, "rooms", roomCode, "players", playerUid);
 }
 
-function tsToMs(ts){ return ts?.toMillis?.() ?? null; }
-
-function setTimer(msLeft, total){
-  const s = Math.max(0, Math.ceil(msLeft / 1000));
-  timerText.textContent = String(s).padStart(2, "0");
-  const frac = Math.max(0, Math.min(1, msLeft / total));
-  timerFill.style.transform = `scaleX(${frac})`;
+async function ensureRoomCodeUnique(code){
+  const snap = await getDoc(roomRef(code));
+  return !snap.exists();
 }
 
-/* =========================
-   RANDOM PICK (NO REPEAT)
-========================= */
-function makeCode(len=4){
-  const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let s=""; for(let i=0;i<len;i++) s += chars[Math.floor(Math.random()*chars.length)];
+function genRoomCode(){
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for(let i=0;i<4;i++) s += chars[Math.floor(Math.random()*chars.length)];
   return s;
 }
 
-function shuffle(arr){
-  const a=[...arr];
-  for(let i=a.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [a[i],a[j]]=[a[j],a[i]];
-  }
-  return a;
-}
+/* -----------------------------
+   8) Host / Join
+-------------------------------- */
+hostBtn.addEventListener("click", async ()=>{
+  const name = (nameInput.value || "").trim();
+  if(!name) return alert("Enter your name first.");
+  if(!uid) return alert("Auth not ready. Try again.");
 
-function pickNextLevelQuestions(usedSourceIds){
-  const used = new Set(usedSourceIds || []);
-  const available = BANK.filter(q => !used.has(q.id));
-  if(available.length < Q_PER_LEVEL) return null;
-  return shuffle(available).slice(0, Q_PER_LEVEL);
-}
+  me.name = name;
+  setSidebarName(name);
 
-/* =========================
-   UI RENDERERS
-========================= */
-function renderScoreboard(players){
-  scoreList.innerHTML = "";
-  players.forEach(p => {
-    const div = document.createElement("div");
-    div.className = "scoreItem";
-
-    const lvlScores = p.levelScores || {};
-    const total = p.totalScore ?? p.score ?? 0;
-
-    const left = document.createElement("div");
-    left.innerHTML = `
-      <div class="scoreName">${escapeHtml(p.name || "Player")}${p.isHost ? " (Host)" : ""}</div>
-      <div style="font-size:12px;color:rgba(15,31,51,0.60)">Total: <b>${total}</b></div>
-    `;
-
-    const right = document.createElement("div");
-    right.className = "scoreNum";
-    right.textContent = String(total);
-
-    div.appendChild(left);
-    div.appendChild(right);
-    scoreList.appendChild(div);
-  });
-}
-
-function renderQuestion(q){
-  questionText.textContent = q.question;
-  optionsArea.innerHTML = "";
-  answerInfo.textContent = "";
-
-  q.options.forEach((opt, idx) => {
-    const b = document.createElement("button");
-    b.className = "optBtn";
-    b.dataset.idx = String(idx);
-    b.textContent = `${String.fromCharCode(65+idx)}) ${opt}`;
-    b.onclick = () => submitAnswer(idx);
-    optionsArea.appendChild(b);
-  });
-}
-
-function lockOptions(){
-  for(const b of optionsArea.querySelectorAll("button")){
-    b.disabled = true;
-    b.classList.add("locked");
-  }
-}
-
-function markSelectedNeutral(chosenIdx){
-  for(const b of optionsArea.querySelectorAll("button")){
-    const idx = Number(b.dataset.idx);
-    if(idx === chosenIdx){
-      b.classList.add("locked");
-      b.style.outline = "2px solid rgba(74,141,255,0.45)";
-    }
-  }
-}
-
-function revealCorrectUI(chosenIdx){
-  if(!currentQuestionDoc) return;
-  const correct = currentQuestionDoc.answerIndex;
-
-  for(const b of optionsArea.querySelectorAll("button")){
-    const idx = Number(b.dataset.idx);
-    b.disabled = true;
-    b.classList.add("locked");
-
-    // ✅ correct always green
-    if(idx === correct) b.classList.add("correct");
-
-    // ✅ if player selected wrong -> show selected red
-    if(chosenIdx != null && idx === chosenIdx && chosenIdx !== correct){
-      b.classList.add("wrong");
-    }
+  let code = genRoomCode();
+  for(let tries=0; tries<8; tries++){
+    if(await ensureRoomCodeUnique(code)) break;
+    code = genRoomCode();
   }
 
-  if(chosenIdx == null){
-    answerInfo.textContent = `⏱️ Time up! Correct: ${String.fromCharCode(65+correct)}`;
-  } else if(chosenIdx === correct){
-    answerInfo.textContent = `✅ Correct! (${String.fromCharCode(65+correct)})`;
-  } else {
-    answerInfo.textContent = `❌ Wrong. Correct: ${String.fromCharCode(65+correct)}`;
-  }
-}
+  currentRoomCode = code;
+  setRoomCodeUI(code);
 
-/* =========================
-   FIRESTORE: PLAYER
-========================= */
-async function upsertPlayer(roomId, name, hostFlag){
-  await setDoc(doc(db,"rooms",roomId,"players",uid), {
-    uid,
-    name,
-    score: 0,             // legacy (still ok)
-    totalScore: 0,        // ✅ total across levels
-    levelScores: {},      // ✅ {1: x, 2: y, ...}
-    isHost: !!hostFlag,
-    joinedAt: serverTimestamp(),
-    answered: {},         // answered map per question index within a level
-    lastAnswer: null
-  }, { merge:true });
-}
-
-/* =========================
-   ROOM LISTENERS
-========================= */
-function attachRoom(roomId){
-  const roomRef = doc(db,"rooms",roomId);
-
-  // players list
-  const playersQ = query(collection(db,"rooms",roomId,"players"), orderBy("totalScore","desc"));
-  onSnapshot(playersQ, (snap)=>{
-    const players = snap.docs.map(d => d.data());
-    renderScoreboard(players.slice(0,2));
-
-    lobbyPlayers.innerHTML = players.map(p => `• ${escapeHtml(p.name)}${p.isHost?" (Host)":""}`).join("<br/>");
-    window.__playerCount = players.length;
-  });
-
-  // room doc
-  onSnapshot(roomRef, async (snap)=>{
-    if(!snap.exists()) return;
-    const r = snap.data();
-
-    currentRoomCode = r.roomCode;
-    lobbyCode.textContent = r.roomCode;
-    roomCodePill.textContent = r.roomCode;
-
-    lobbyStatus.textContent = r.status || "waiting";
-
-    const level = r.level || 1;
-    if(levelPill) levelPill.textContent = `Level ${level}/${MAX_LEVELS}`;
-
-    // screen routing
-    if (r.status === "waiting") show(lobbyScreen);
-    if (r.status === "live") show(gameScreen);
-    if (r.status === "level_done" || r.status === "finished_all") {
-      show(resultsScreen);
-      renderResults(r);
-    }
-
-    lobbyHostControls.classList.toggle("hidden", !isHost);
-
-    const qIndex = r.currentQuestion ?? 0;
-    qNum.textContent = String(qIndex + 1);
-    phasePill.textContent = r.phase || "-";
-    phaseText.textContent =
-      r.phase === "question" ? "Answer now!"
-    : r.phase === "reveal" ? "Showing correct answer…"
-    : "—";
-
-    // Load question doc
-    if (r.status === "live") {
-      const qRef = doc(db,"rooms",roomId,"questions", String(qIndex));
-      const qSnap = await getDoc(qRef);
-      if(qSnap.exists()){
-        currentQuestionDoc = { id:qSnap.id, ...qSnap.data() };
-        renderQuestion(currentQuestionDoc);
-      }
-    }
-
-    // Timing triggers
-    const startAtMs = tsToMs(r.questionStartAt);
-    const revealAtMs = tsToMs(r.revealAt);
-
-    if(startAtMs && startAtMs !== lastStartAtMs){
-      lastStartAtMs = startAtMs;
-      lastRevealAtMs = null;
-      startTick(roomId);
-    }
-    if(revealAtMs && revealAtMs !== lastRevealAtMs){
-      lastRevealAtMs = revealAtMs;
-    }
-
-    // Rematch button label
-    if(rematchBtn && rematchLabel){
-      const canRematch = isHost && (r.status === "level_done") && ((r.level || 1) < MAX_LEVELS);
-      rematchBtn.classList.toggle("hidden", !canRematch);
-      if(canRematch){
-        rematchLabel.textContent = `Rematch to Level ${(r.level || 1) + 1}`;
-      }
-    }
-  });
-
-  // my player doc
-  onSnapshot(doc(db,"rooms",roomId,"players",uid), (snap)=>{
-    if(!snap.exists()) return;
-    window.__me = snap.data();
-  });
-}
-
-/* =========================
-   TIMER LOOP + HOST AUTOMATION
-========================= */
-function startTick(roomId){
-  stopTick();
-
-  tick = setInterval(async ()=>{
-    const roomRef = doc(db,"rooms",roomId);
-    const snap = await getDoc(roomRef);
-    if(!snap.exists()) return;
-    const r = snap.data();
-    if(r.status !== "live") return;
-
-    const phase = r.phase;
-    const startAt = tsToMs(r.questionStartAt);
-    const revealAt = tsToMs(r.revealAt);
-    const now = Date.now();
-
-    // QUESTION PHASE
-    if(phase === "question"){
-      const msLeft = (startAt + QUESTION_MS) - now;
-      setTimer(msLeft, QUESTION_MS);
-
-      // if I already answered, show waiting message
-      const me = window.__me;
-      const qIndex = r.currentQuestion ?? 0;
-      const iAnswered = !!me?.answered?.[String(qIndex)];
-      if(iAnswered){
-        answerInfo.textContent = "✅ Answer locked. Waiting for other player…";
-      }
-
-      // early reveal if all answered
-      const answeredCount = r.answeredCount ?? 0;
-      const playerCount = window.__playerCount ?? 0;
-      if (isHost && playerCount > 0 && answeredCount >= playerCount) {
-        await updateDoc(roomRef, { phase:"reveal", revealAt: serverTimestamp() });
-        return;
-      }
-
-      // time ended -> host move to reveal
-      if (msLeft <= 0){
-        lockOptions();
-        revealCorrectUI(null);
-        if(isHost){
-          await updateDoc(roomRef, { phase:"reveal", revealAt: serverTimestamp() });
-        }
-      }
-    }
-
-    // REVEAL PHASE
-    if(phase === "reveal"){
-      if(!revealAt) return;
-      const msLeft = (revealAt + REVEAL_MS) - now;
-      setTimer(msLeft, REVEAL_MS);
-
-      const me = window.__me;
-      const qIndex = r.currentQuestion ?? 0;
-      let chosen = null;
-      if (me?.lastAnswer?.qIndex === qIndex) chosen = me.lastAnswer.chosenIndex;
-
-      lockOptions();
-      revealCorrectUI(chosen);
-
-      if(msLeft <= 0 && isHost){
-        await nextOrLevelDone(roomId);
-      }
-    }
-  }, 350);
-}
-
-/* =========================
-   MOVE NEXT QUESTION OR END LEVEL
-========================= */
-async function nextOrLevelDone(roomId){
-  const roomRef = doc(db,"rooms",roomId);
-
-  await runTransaction(db, async (tx)=>{
-    const s = await tx.get(roomRef);
-    if(!s.exists()) return;
-    const r = s.data();
-
-    const q = r.currentQuestion ?? 0;
-    const next = q + 1;
-
-    if(next >= Q_PER_LEVEL){
-      tx.update(roomRef, {
-        status: "level_done",
-        phase: "done",
-        revealAt: null
-      });
-    } else {
-      tx.update(roomRef, {
-        currentQuestion: next,
-        phase: "question",
-        questionStartAt: serverTimestamp(),
-        answeredCount: 0,
-        revealAt: null
-      });
-    }
-  });
-
-  // if level ended, host saves leaderboard snapshot
-  const s2 = await getDoc(roomRef);
-  if(s2.exists() && s2.data().status === "level_done" && isHost){
-    await computeLevelLeaderboard(roomId);
-  }
-}
-
-/* =========================
-   SUBMIT ANSWER
-========================= */
-async function submitAnswer(chosenIndex){
-  if(!currentRoomId || !currentQuestionDoc) return;
-
-  const roomRef = doc(db,"rooms",currentRoomId);
-  const playerRef = doc(db,"rooms",currentRoomId,"players",uid);
-
-  // optimistic UI: mark selected and disable
-  lockOptions();
-  markSelectedNeutral(chosenIndex);
-  answerInfo.textContent = "✅ Answer locked. Waiting for other player…";
-
-  await runTransaction(db, async (tx)=>{
-    const roomSnap = await tx.get(roomRef);
-    const pSnap = await tx.get(playerRef);
-    if(!roomSnap.exists() || !pSnap.exists()) return;
-
-    const r = roomSnap.data();
-    if(r.status !== "live" || r.phase !== "question") return;
-
-    const startMs = tsToMs(r.questionStartAt);
-    if(!startMs) return;
-    if(Date.now() > startMs + QUESTION_MS) return;
-
-    const qIndex = r.currentQuestion ?? 0;
-    const p = pSnap.data();
-    const answered = p.answered || {};
-    if(answered[String(qIndex)]) return; // already answered
-
-    answered[String(qIndex)] = true;
-
-    const correct = currentQuestionDoc.answerIndex;
-    const isCorrect = chosenIndex === correct;
-
-    const level = r.level || 1;
-    const levelScores = p.levelScores || {};
-    const prevLevelScore = levelScores[String(level)] || 0;
-    const newLevelScore = prevLevelScore + (isCorrect ? 1 : 0);
-    levelScores[String(level)] = newLevelScore;
-
-    const totalScore = (p.totalScore || 0) + (isCorrect ? 1 : 0);
-
-    tx.update(playerRef, {
-      answered,
-      levelScores,
-      totalScore,
-      lastAnswer: { qIndex, chosenIndex, at: serverTimestamp() }
-    });
-
-    // increment room answeredCount
-    tx.update(roomRef, { answeredCount: (r.answeredCount || 0) + 1 });
-  });
-}
-
-/* =========================
-   HOST/ JOIN FLOW
-========================= */
-hostBtn.onclick = async ()=>{
-  const name = nameInput.value.trim() || "Host";
-
-  if(BANK.length !== 100){
-    alert("Your MCQ bank did not load as 100. Check rawQuestions.js");
-    return;
-  }
-
-  isHost = true;
-  const code = makeCode(4);
-  roomCodeInput.value = code;
-
-  const roomDoc = doc(collection(db,"rooms"));
-  currentRoomId = roomDoc.id;
-
-  await setDoc(doc(db,"roomCodes", code), { roomId: roomDoc.id, createdAt: serverTimestamp() });
-
-  await setDoc(roomDoc, {
+  // Create room doc
+  await setDoc(roomRef(code), {
     roomCode: code,
     hostId: uid,
-    status: "waiting",
+    status: "waiting",  // waiting | playing | reveal | level_done | finished
+    phase: "lobby",
     level: 1,
-    usedSourceIds: [],
-    currentQuestion: 0,
+    questionNo: 0,
+    currentQid: null,
+    questionStartAtMs: null,
+    revealStartAtMs: null,
+    usedQids: [],
     createdAt: serverTimestamp()
   });
 
-  await upsertPlayer(roomDoc.id, name, true);
+  // Create player doc
+  await setDoc(playerRef(code, uid), {
+    uid,
+    name,
+    isHost: true,
+    totalScore: 0,
+    levelScores: {}, // {"1": 0, "2": 0, ...}
+    answeredQid: null,
+    answeredIndex: null,
+    answeredAtMs: null,
+    joinedAt: serverTimestamp()
+  });
 
-  show(lobbyScreen);
-  attachRoom(roomDoc.id);
-};
+  startListeners(code);
+  openLobbyUI();
+});
 
-joinBtn.onclick = async ()=>{
-  const name = nameInput.value.trim() || "Player";
-  const code = roomCodeInput.value.trim().toUpperCase();
-  if(!code) return alert("Enter room code");
+joinBtn.addEventListener("click", async ()=>{
+  const name = (nameInput.value || "").trim();
+  if(!name) return alert("Enter your name first.");
+  if(!uid) return alert("Auth not ready. Try again.");
 
-  isHost = false;
+  const code = (roomCodeInput.value || "").trim().toUpperCase();
+  if(code.length !== 4) return alert("Room code must be 4 characters.");
 
-  const codeSnap = await getDoc(doc(db,"roomCodes", code));
-  if(!codeSnap.exists()) return alert("Room not found");
+  const rs = await getDoc(roomRef(code));
+  if(!rs.exists()) return alert("Room not found. Check code.");
+  const r = rs.data();
 
-  const { roomId } = codeSnap.data();
-  currentRoomId = roomId;
+  if(r.status !== "waiting" && r.status !== "playing" && r.status !== "reveal" && r.status !== "level_done"){
+    return alert("This room is not joinable now.");
+  }
 
-  await upsertPlayer(roomId, name, false);
+  // only allow 2 players
+  // We'll rely on transaction to prevent >2
+  await runTransaction(db, async (tx)=>{
+    const roomSnap = await tx.get(roomRef(code));
+    if(!roomSnap.exists()) throw new Error("Room not found.");
+    const room = roomSnap.data();
 
-  show(lobbyScreen);
-  attachRoom(roomId);
-};
+    const pCol = collection(db, "rooms", code, "players");
+    // Firestore transaction can't query collection easily with count.
+    // We'll do a simple check using known 2-player logic: create only if room not full
+    // We'll store "playerCount" on room to enforce.
+    const count = room.playerCount ?? 0;
+    if(count >= 2) throw new Error("Room already full (2 players).");
 
-/* =========================
-   START LEVEL 1 (HOST)
-========================= */
-startBtn.onclick = async ()=>{
-  if(!currentRoomId) return;
+    tx.update(roomRef(code), { playerCount: count + 1 });
+    tx.set(playerRef(code, uid), {
+      uid,
+      name,
+      isHost: false,
+      totalScore: 0,
+      levelScores: {},
+      answeredQid: null,
+      answeredIndex: null,
+      answeredAtMs: null,
+      joinedAt: serverTimestamp()
+    });
+  }).catch((e)=>{
+    alert(e.message || "Join failed.");
+    throw e;
+  });
 
-  const roomRef = doc(db,"rooms",currentRoomId);
-  const roomSnap = await getDoc(roomRef);
-  if(!roomSnap.exists()) return;
+  me.name = name;
+  setSidebarName(name);
 
-  const r = roomSnap.data();
-  const level = r.level || 1;
-  const used = r.usedSourceIds || [];
+  currentRoomCode = code;
+  setRoomCodeUI(code);
 
-  const selected = pickNextLevelQuestions(used);
-  if(!selected){
-    alert("Not enough unused questions left.");
+  startListeners(code);
+  openLobbyUI();
+});
+
+/* Ensure host also sets playerCount=1 when creating room (after doc exists) */
+async function fixHostPlayerCount(){
+  if(!currentRoomCode) return;
+  try{
+    const rs = await getDoc(roomRef(currentRoomCode));
+    if(!rs.exists()) return;
+    const r = rs.data();
+    if(r.playerCount == null){
+      await updateDoc(roomRef(currentRoomCode), { playerCount: 1 });
+    }
+  }catch{}
+}
+
+/* -----------------------------
+   9) UI Navigation
+-------------------------------- */
+function openLobbyUI(){
+  showScreen(lobbyScreen);
+  topTitle.textContent = "Match lobby";
+  topSub.textContent = "WAITING FOR PLAYERS";
+  lobbyHint.textContent = "WAITING FOR PLAYERS";
+  timerText.textContent = "--";
+  timerFill.style.width = "0%";
+}
+
+function openGameUI(){
+  showScreen(gameScreen);
+  topTitle.textContent = `Question`;
+  topSub.textContent = "";
+}
+
+function openResultsUI(){
+  showScreen(resultsScreen);
+  topTitle.textContent = "Match finished";
+  topSub.textContent = "";
+  timerText.textContent = "--";
+  timerFill.style.width = "0%";
+}
+
+backHomeBtn.addEventListener("click", ()=> location.reload());
+
+/* -----------------------------
+   10) Listeners
+-------------------------------- */
+function stopListeners(){
+  if(roomUnsub) roomUnsub(); roomUnsub = null;
+  if(playersUnsub) playersUnsub(); playersUnsub = null;
+  if(tickInterval) clearInterval(tickInterval); tickInterval = null;
+}
+
+function startListeners(code){
+  stopListeners();
+  setRoomCodeUI(code);
+
+  roomUnsub = onSnapshot(roomRef(code), (snap)=>{
+    if(!snap.exists()) return;
+    roomState = snap.data();
+    onRoomUpdate();
+  });
+
+  const pq = query(collection(db, "rooms", code, "players"), orderBy("joinedAt", "asc"));
+  playersUnsub = onSnapshot(pq, (snap)=>{
+    playersState = snap.docs.map(d => d.data());
+    onPlayersUpdate();
+  });
+
+  fixHostPlayerCount();
+}
+
+function onPlayersUpdate(){
+  // Sidebar list
+  playersList.innerHTML = "";
+  for(const p of playersState){
+    const li = document.createElement("li");
+    li.className = "playerRow";
+    li.innerHTML = `
+      <div class="miniAvatar">${(p.name||"P")[0].toUpperCase()}</div>
+      <div class="playerMeta">
+        <b>${escapeHtml(p.name)}${p.isHost ? " (Host)" : ""}</b>
+        <span>${p.totalScore || 0} points</span>
+      </div>
+      <div class="points">${p.totalScore || 0}</div>
+    `;
+    playersList.appendChild(li);
+  }
+
+  // Total score (me)
+  const mine = myPlayer();
+  totalScoreEl.textContent = mine?.totalScore ?? 0;
+
+  // Lobby joined text
+  lobbyPlayers.textContent = formatPlayersJoined(playersState);
+
+  // status badge
+  const s = roomState?.status || "waiting";
+  lobbyStatus.textContent = s;
+}
+
+function onRoomUpdate(){
+  if(!roomState) return;
+
+  setLevelUI(roomState.level || 1);
+
+  // show correct top subtitle
+  if(roomState.status === "waiting"){
+    topTitle.textContent = "Match lobby";
+    topSub.textContent = "WAITING FOR PLAYERS";
+    lobbyHint.textContent = "WAITING FOR PLAYERS";
+    startBtn.disabled = !isHost() || playersState.length < 2;
+    rematchBtn.classList.add("hidden");
+    showScreen(lobbyScreen);
     return;
   }
 
-  // write questions
-  const batch = writeBatch(db);
+  if(roomState.status === "playing" || roomState.status === "reveal"){
+    openGameUI();
+    renderQuestionAndPhase();
+    startTicker();
+    return;
+  }
 
-  selected.forEach((q, idx)=>{
-    batch.set(doc(db,"rooms",currentRoomId,"questions", String(idx)), {
-      question: q.question,
-      options: q.options,
-      answerIndex: q.answerIndex,
-      sourceId: q.id
+  if(roomState.status === "level_done" || roomState.status === "finished"){
+    openResultsUI();
+    renderResults();
+    startBtn.disabled = true;
+    return;
+  }
+}
+
+/* -----------------------------
+   11) Start Match / Rematch
+-------------------------------- */
+startBtn.addEventListener("click", async ()=>{
+  if(!isHost()) return alert("Only host can start.");
+  if(playersState.length < 2) return alert("Need 2 players.");
+
+  await startLevel(1, true);
+});
+
+rematchBtn.addEventListener("click", async ()=>{
+  if(!isHost()) return alert("Only host can rematch.");
+  const nextLevel = (roomState?.level || 1) + 1;
+  if(nextLevel > LEVELS) return;
+
+  await startLevel(nextLevel, false);
+});
+
+async function startLevel(level, resetScores){
+  const code = currentRoomCode;
+  if(!code) return;
+
+  // if resetScores: clear player scores
+  if(resetScores){
+    for(const p of playersState){
+      await updateDoc(playerRef(code, p.uid), {
+        totalScore: 0,
+        levelScores: {},
+        answeredQid: null,
+        answeredIndex: null,
+        answeredAtMs: null
+      });
+    }
+    await updateDoc(roomRef(code), { usedQids: [] });
+  }
+
+  // pick 20 unused questions
+  const rs = await getDoc(roomRef(code));
+  const used = (rs.data().usedQids || []);
+  const available = QUESTIONS.map(q => q.id).filter(id => !used.includes(id));
+
+  if(available.length < QUESTIONS_PER_LEVEL){
+    // not enough questions left; finish
+    await updateDoc(roomRef(code), {
+      status: "finished",
+      phase: "results"
     });
-  });
+    return;
+  }
 
-  // update used list
-  const newUsed = [...used, ...selected.map(q => q.id)];
+  const picked = pickRandom(available, QUESTIONS_PER_LEVEL);
+  const firstQid = picked[0];
 
-  // reset players answered map (new level)
-  const playersSnap = await getDocs(collection(db,"rooms",currentRoomId,"players"));
-  playersSnap.forEach(pdoc=>{
-    batch.update(doc(db,"rooms",currentRoomId,"players", pdoc.id), {
-      answered: {},
-      lastAnswer: null
-    });
-  });
-
-  batch.update(roomRef, {
-    status: "live",
+  await updateDoc(roomRef(code), {
+    status: "playing",
     phase: "question",
-    currentQuestion: 0,
-    questionStartAt: serverTimestamp(),
-    answeredCount: 0,
-    revealAt: null,
-    usedSourceIds: newUsed,
-    startedAt: serverTimestamp()
+    level,
+    questionNo: 1,
+    currentQid: firstQid,
+    questionStartAtMs: nowMs(),
+    revealStartAtMs: null,
+    currentLevelQids: picked,
+    usedQids: [...used, ...picked],
+    playerCount: rs.data().playerCount ?? playersState.length
   });
 
-  await batch.commit();
-};
-
-/* =========================
-   LEVEL LEADERBOARD
-========================= */
-async function computeLevelLeaderboard(roomId){
-  const roomRef = doc(db,"rooms",roomId);
-  const roomSnap = await getDoc(roomRef);
-  if(!roomSnap.exists()) return;
-  const r = roomSnap.data();
-  const level = r.level || 1;
-
-  const snap = await getDocs(collection(db,"rooms",roomId,"players"));
-  const players = snap.docs.map(d => d.data())
-    .sort((a,b)=> (b.totalScore||0)-(a.totalScore||0));
-
-  const top2 = players.slice(0,2).map(p => ({
-    name: p.name,
-    uid: p.uid,
-    totalScore: p.totalScore || 0,
-    levelScores: p.levelScores || {}
-  }));
-
-  await updateDoc(roomRef, {
-    lastLevelLeaderboard: top2,
-    lastLevel: level
-  });
+  // reset answers for players
+  for(const p of playersState){
+    await updateDoc(playerRef(code, p.uid), {
+      answeredQid: null,
+      answeredIndex: null,
+      answeredAtMs: null
+    });
+  }
 }
 
-/* =========================
-   REMATCH / NEXT LEVEL (HOST)
-========================= */
-if(rematchBtn){
-  rematchBtn.onclick = async ()=>{
-    if(!currentRoomId) return;
+/* -----------------------------
+   12) Answering + Host Control
+-------------------------------- */
+optionsArea.addEventListener("click", async (e)=>{
+  const btn = e.target.closest(".ansBtn");
+  if(!btn) return;
+  if(!roomState || roomState.status !== "playing") return;
 
-    const roomRef = doc(db,"rooms",currentRoomId);
-    const roomSnap = await getDoc(roomRef);
-    if(!roomSnap.exists()) return;
+  const qid = roomState.currentQid;
+  const choice = Number(btn.dataset.index);
 
-    const r = roomSnap.data();
+  // prevent multiple answers
+  const mine = myPlayer();
+  if(mine?.answeredQid === qid) return;
+
+  await updateDoc(playerRef(currentRoomCode, uid), {
+    answeredQid: qid,
+    answeredIndex: choice,
+    answeredAtMs: nowMs()
+  });
+});
+
+function hostMaybeAdvance(){
+  if(!isHost()) return;
+  if(!roomState) return;
+  if(roomState.status !== "playing") return;
+
+  const qid = roomState.currentQid;
+  if(!qid) return;
+
+  const startAt = roomState.questionStartAtMs || 0;
+  const elapsed = (nowMs() - startAt) / 1000;
+
+  const bothAnswered = playersState.length >= 2
+    && playersState.every(p => p.answeredQid === qid && p.answeredIndex != null);
+
+  if(bothAnswered || elapsed >= QUESTION_SECONDS){
+    // reveal phase
+    revealAndScore();
+  }
+}
+
+async function revealAndScore(){
+  const code = currentRoomCode;
+  const qid = roomState.currentQid;
+  const q = getQuestionById(qid);
+  if(!q) return;
+
+  // lock into reveal
+  await updateDoc(roomRef(code), {
+    status: "reveal",
+    phase: "reveal",
+    revealStartAtMs: nowMs(),
+    correctIndex: q.answerIndex
+  });
+
+  // score with transaction
+  await runTransaction(db, async (tx)=>{
+    const ps = playersState.map(p => ({...p}));
+
+    for(const p of ps){
+      const correct = (p.answeredQid === qid && p.answeredIndex === q.answerIndex);
+      const add = correct ? POINTS_PER_CORRECT : 0;
+
+      const pref = playerRef(code, p.uid);
+      const snap = await tx.get(pref);
+      if(!snap.exists()) continue;
+      const cur = snap.data();
+
+      const lvl = String(roomState.level || 1);
+      const curLevelScores = cur.levelScores || {};
+      const newLevelScore = (curLevelScores[lvl] || 0) + add;
+      const newTotal = (cur.totalScore || 0) + add;
+
+      tx.update(pref, {
+        totalScore: newTotal,
+        levelScores: { ...curLevelScores, [lvl]: newLevelScore }
+      });
+    }
+  });
+
+  // after reveal timer, host advances next
+  setTimeout(async ()=>{
+    // re-fetch roomState quickly via snapshot, but safe:
+    const rs = await getDoc(roomRef(code));
+    if(!rs.exists()) return;
+    const r = rs.data();
+
+    if(r.status !== "reveal") return;
+
+    const nextNo = (r.questionNo || 1) + 1;
+    const levelQids = r.currentLevelQids || [];
     const level = r.level || 1;
-    if(level >= MAX_LEVELS) return;
 
-    const nextLevel = level + 1;
-    const used = r.usedSourceIds || [];
-
-    const selected = pickNextLevelQuestions(used);
-    if(!selected){
-      alert("Not enough unused questions left for next level.");
-      return;
-    }
-
-    const batch = writeBatch(db);
-
-    // write new questions (0..19)
-    selected.forEach((q, idx)=>{
-      batch.set(doc(db,"rooms",currentRoomId,"questions", String(idx)), {
-        question: q.question,
-        options: q.options,
-        answerIndex: q.answerIndex,
-        sourceId: q.id
-      });
-    });
-
-    // reset player answered map
-    const playersSnap = await getDocs(collection(db,"rooms",currentRoomId,"players"));
-    playersSnap.forEach(pdoc=>{
-      batch.update(doc(db,"rooms",currentRoomId,"players", pdoc.id), {
-        answered: {},
-        lastAnswer: null
-      });
-    });
-
-    const newUsed = [...used, ...selected.map(q => q.id)];
-
-    batch.update(roomRef, {
-      level: nextLevel,
-      status: "live",
-      phase: "question",
-      currentQuestion: 0,
-      questionStartAt: serverTimestamp(),
-      answeredCount: 0,
-      revealAt: null,
-      usedSourceIds: newUsed
-    });
-
-    await batch.commit();
-  };
-}
-
-/* =========================
-   RESULTS UI
-========================= */
-function renderResults(roomData){
-  const level = roomData.level || 1;
-
-  // if finished all levels, show FINAL leaderboard
-  const finishedAll = roomData.status === "finished_all" || level >= MAX_LEVELS;
-
-  leaderboardBox.innerHTML = "";
-
-  const title = document.createElement("div");
-  title.className = "muted";
-  title.style.marginBottom = "10px";
-  title.innerHTML = finishedAll
-    ? `<b>Final Results</b> (All Levels)`
-    : `<b>Level ${level} Finished</b>`;
-
-  leaderboardBox.appendChild(title);
-
-  // show top players from live data
-  // We compute from players collection
-  (async ()=>{
-    const snap = await getDocs(collection(db,"rooms",currentRoomId,"players"));
-    const players = snap.docs.map(d => d.data())
-      .sort((a,b)=> (b.totalScore||0)-(a.totalScore||0));
-
-    const top2 = players.slice(0,2);
-
-    if(!top2.length){
-      leaderboardBox.innerHTML = `<div class="muted">No players found.</div>`;
-      return;
-    }
-
-    const winner = top2[0];
-    const runner = top2[1];
-
-    // card maker
-    const makePlayerCard = (label, p, medal) => {
-      const levels = p.levelScores || {};
-      let lines = "";
-      for(let i=1;i<=MAX_LEVELS;i++){
-        if(levels[String(i)] != null){
-          lines += `<div class="muted" style="font-size:12px">Level ${i}: <b>${levels[String(i)]}</b></div>`;
-        }
+    if(nextNo > QUESTIONS_PER_LEVEL){
+      // level finished
+      if(level >= LEVELS){
+        await updateDoc(roomRef(code), {
+          status: "finished",
+          phase: "results"
+        });
+      }else{
+        await updateDoc(roomRef(code), {
+          status: "level_done",
+          phase: "results"
+        });
       }
-
-      return `
-        <div class="scoreItem" style="margin-top:10px">
-          <div>
-            <div class="scoreName">${medal} ${label}: ${escapeHtml(p.name)}</div>
-            <div class="muted" style="font-size:12px;margin-top:6px">Total: <b>${p.totalScore || 0}</b></div>
-            ${lines}
-          </div>
-          <div class="scoreNum">${p.totalScore || 0}</div>
-        </div>
-      `;
-    };
-
-    leaderboardBox.innerHTML += makePlayerCard("Winner", winner, "🏆");
-    if(runner){
-      leaderboardBox.innerHTML += makePlayerCard("Runner-up", runner, "🥈");
-    } else {
-      leaderboardBox.innerHTML += `<div class="muted" style="margin-top:12px">Only one player joined.</div>`;
+      return;
     }
 
-    // if this is the end of level and host wants to stop early:
-    if(isHost && !finishedAll && level < MAX_LEVELS){
-      leaderboardBox.innerHTML += `<div class="muted" style="margin-top:12px">Host can start the next level using the Rematch button.</div>`;
+    const nextQid = levelQids[nextNo - 1];
+
+    // reset player answers
+    for(const p of playersState){
+      await updateDoc(playerRef(code, p.uid), {
+        answeredQid: null,
+        answeredIndex: null,
+        answeredAtMs: null
+      });
     }
-    if(finishedAll){
-      leaderboardBox.innerHTML += `<div class="muted" style="margin-top:12px">Match complete ✅</div>`;
-    }
-  })();
+
+    await updateDoc(roomRef(code), {
+      status: "playing",
+      phase: "question",
+      questionNo: nextNo,
+      currentQid: nextQid,
+      questionStartAtMs: nowMs(),
+      revealStartAtMs: null,
+      correctIndex: null
+    });
+  }, REVEAL_SECONDS * 1000);
 }
 
-backHomeBtn.onclick = ()=>{
-  stopTick();
-  currentRoomId = null;
-  currentRoomCode = null;
-  isHost = false;
-  lastStartAtMs = null;
-  lastRevealAtMs = null;
-  show(homeScreen);
-};
+/* -----------------------------
+   13) Rendering
+-------------------------------- */
+function renderQuestionAndPhase(){
+  const qid = roomState?.currentQid;
+  const q = getQuestionById(qid);
 
-/* =========================
-   OPTIONAL: AUTO FINISH ALL LEVELS
-   (If you want: when level 5 ends, set status finished_all)
-========================= */
-onSnapshot(collection(db,"rooms"), ()=>{}); // no-op, keeps module active
+  const level = roomState?.level || 1;
+  const qNo = roomState?.questionNo || 0;
+
+  topTitle.textContent = `Question ${qNo} / ${QUESTIONS_PER_LEVEL}`;
+  topSub.textContent = `Level ${level} of ${LEVELS}`;
+
+  if(!q){
+    questionText.textContent = "Loading question…";
+    optionsArea.innerHTML = "";
+    answerInfo.textContent = "Please wait…";
+    return;
+  }
+
+  questionText.textContent = q.q;
+  phasePill.textContent = (roomState.status === "reveal") ? "outcome" : "question";
+
+  const mine = myPlayer();
+  const myPicked = (mine?.answeredQid === qid) ? mine.answeredIndex : null;
+
+  // render options
+  const letters = ["A","B","C","D"];
+  optionsArea.innerHTML = "";
+  q.options.forEach((opt, i)=>{
+    const b = document.createElement("button");
+    b.className = "ansBtn";
+    b.dataset.index = String(i);
+    b.type = "button";
+    b.innerHTML = `${escapeHtml(opt)}<span class="keyTag">${letters[i]}</span>`;
+
+    // during question
+    if(roomState.status === "playing"){
+      if(myPicked === i) b.classList.add("selected");
+      // disable if already answered
+      if(myPicked != null) b.disabled = true;
+    }
+
+    // during reveal show correct/wrong styles
+    if(roomState.status === "reveal"){
+      b.disabled = true;
+      const correctIndex = roomState.correctIndex;
+      const correctBtn = (i === correctIndex);
+
+      if(correctBtn) b.classList.add("correct");
+      if(myPicked === i && !correctBtn) b.classList.add("wrong");
+      if(myPicked === i) b.classList.add("selected");
+    }
+
+    optionsArea.appendChild(b);
+  });
+
+  // info text
+  if(roomState.status === "playing"){
+    const bothAnswered = playersState.length >= 2 && playersState.every(p => p.answeredQid === qid && p.answeredIndex != null);
+    if(myPicked == null){
+      answerInfo.textContent = "Choose an answer (you have 20 seconds).";
+    }else{
+      answerInfo.textContent = bothAnswered
+        ? "Both answered — revealing now…"
+        : "Answer locked. Waiting for opponent or time up…";
+    }
+  }else if(roomState.status === "reveal"){
+    const correctIndex = roomState.correctIndex;
+    const ok = (myPicked === correctIndex);
+    answerInfo.textContent = ok
+      ? "✅ Correct! (green)"
+      : "❌ Wrong! Correct answer highlighted (green). Your wrong choice is red.";
+  }
+}
+
+function renderResults(){
+  const level = roomState?.level || 1;
+
+  // sort by totalScore desc
+  const sorted = [...playersState].sort((a,b)=> (b.totalScore||0) - (a.totalScore||0));
+  const winner = sorted[0];
+  const runner = sorted[1];
+
+  if(roomState.status === "level_done"){
+    resultTitle.textContent = `🏁 Level ${level} finished`;
+  }else{
+    resultTitle.textContent = `🏆 Match finished (All Levels)`;
+  }
+
+  // show rematch if not finished all levels
+  if(roomState.status === "level_done" && isHost()){
+    rematchBtn.classList.remove("hidden");
+    const nextLevel = level + 1;
+    rematchLabel.textContent = `Rematch to Level ${nextLevel}`;
+  }else{
+    rematchBtn.classList.add("hidden");
+  }
+
+  // build leaderboard with total + each level breakdown
+  const thLevels = Array.from({length:LEVELS}, (_,i)=>`L${i+1}`);
+  const rows = sorted.map((p, idx)=>{
+    const ls = p.levelScores || {};
+    const lvlCells = thLevels.map((_,i)=>{
+      const key = String(i+1);
+      return `<td>${ls[key] ?? 0}</td>`;
+    }).join("");
+
+    return `
+      <tr>
+        <td><span class="pill">#${idx+1}</span></td>
+        <td>${escapeHtml(p.name)}${p.isHost ? " (Host)" : ""}</td>
+        <td><b>${p.totalScore ?? 0}</b></td>
+        ${lvlCells}
+      </tr>
+    `;
+  }).join("");
+
+  leaderboardBox.innerHTML = `
+    <div style="margin-bottom:12px;font-weight:1000;color:#2c3f52">
+      Winner: <span class="pill">${escapeHtml(winner?.name || "-")}</span>
+      &nbsp; Runner-up: <span class="pill">${escapeHtml(runner?.name || "-")}</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Player</th>
+          <th>Total</th>
+          ${thLevels.map(h=>`<th>${h}</th>`).join("")}
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    <div style="margin-top:12px;font-size:12px;font-weight:1000;color:rgba(44,63,82,.75)">
+      Points: +${POINTS_PER_CORRECT} per correct answer • ${QUESTIONS_PER_LEVEL} questions per level • ${LEVELS} levels total
+    </div>
+  `;
+}
+
+/* -----------------------------
+   14) Timer tick
+-------------------------------- */
+function startTicker(){
+  if(tickInterval) return;
+  tickInterval = setInterval(()=>{
+    if(!roomState) return;
+
+    // host checks advance
+    hostMaybeAdvance();
+
+    // compute timer UI
+    if(roomState.status === "playing"){
+      const start = roomState.questionStartAtMs || 0;
+      const elapsed = (nowMs() - start) / 1000;
+      const remaining = Math.ceil(QUESTION_SECONDS - elapsed);
+      const rem = clamp(remaining, 0, QUESTION_SECONDS);
+      timerText.textContent = `${rem}s`;
+      const pct = clamp((elapsed / QUESTION_SECONDS) * 100, 0, 100);
+      timerFill.style.width = `${pct}%`;
+    }else if(roomState.status === "reveal"){
+      const start = roomState.revealStartAtMs || 0;
+      const elapsed = (nowMs() - start) / 1000;
+      const remaining = Math.ceil(REVEAL_SECONDS - elapsed);
+      const rem = clamp(remaining, 0, REVEAL_SECONDS);
+      timerText.textContent = `${rem}s`;
+      const pct = clamp((elapsed / REVEAL_SECONDS) * 100, 0, 100);
+      timerFill.style.width = `${pct}%`;
+
+      // keep UI in sync
+      renderQuestionAndPhase();
+    }else{
+      timerText.textContent = "--";
+      timerFill.style.width = "0%";
+    }
+
+    // keep question UI in sync
+    if(roomState.status === "playing"){
+      renderQuestionAndPhase();
+    }
+  }, 150);
+}
+
+/* -----------------------------
+   15) Safety HTML
+-------------------------------- */
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+/* -----------------------------
+   16) INIT
+-------------------------------- */
+initAuth();
+
+/* -----------------------------
+   17) Question bank builder (your 100 MCQs)
+   - For now, I included a compact version using your first 10 + placeholders.
+   - Replace/add full 100 anytime.
+-------------------------------- */
+function buildQuestionsFromYourBank(){
+  const list = [];
+
+  // --- Your first 10 from your bank (example) ---
+  list.push({
+    id:"q1",
+    q:"A consumer sees a TikTok video of someone eating a viral pasta dish and suddenly feels hungry and wants to try it. This is an example of:",
+    options:["Internal stimulus for need recognition","External stimulus for need recognition","Post-purchase evaluation","Cognitive dissonance"],
+    answerIndex:1
+  });
+  list.push({
+    id:"q2",
+    q:"Ramesh needs a new laptop. He checks past experience, reviews, friends, YouTube. Which stage is he in?",
+    options:["Need Recognition","Information Search","Purchase Decision","Post-Purchase Behavior"],
+    answerIndex:1
+  });
+  list.push({
+    id:"q3",
+    q:"Priya compares iPhone 15 vs Samsung S24 on camera, battery, price. This stage is:",
+    options:["Information Search","Evaluation of Alternatives","Need Recognition","Post-Purchase Evaluation"],
+    answerIndex:1
+  });
+  list.push({
+    id:"q4",
+    q:"After buying a Sony TV, Raj sees a better LG TV cheaper and feels anxious/doubts. This is:",
+    options:["Buyer's remorse / Cognitive Dissonance","Need Recognition","Selective perception","Impulse buying"],
+    answerIndex:0
+  });
+  list.push({
+    id:"q5",
+    q:"Amazon shows '12 people bought this in the last hour' and Meera buys quickly. This factor is:",
+    options:["Discount","Credit options","Social proof","Location"],
+    answerIndex:2
+  });
+  list.push({
+    id:"q6",
+    q:"Teen buys Nike because favorite player endorses it. Motive is:",
+    options:["Rational motive","Emulation motive","Patronage motive","Inherent motive"],
+    answerIndex:1
+  });
+  list.push({
+    id:"q7",
+    q:"Flipkart sale discount triggers early washing machine purchase. Motive is:",
+    options:["Emotional (Vanity)","Rational (Monetary Gain)","Patronage (Store loyalty)","Inherent (Biological need)"],
+    answerIndex:1
+  });
+  list.push({
+    id:"q8",
+    q:"Family always buys from same kirana store due to relationship/credit/delivery. Motive is:",
+    options:["Product Motive","Patronage Motive","Emotional Motive","Learned Motive"],
+    answerIndex:1
+  });
+  list.push({
+    id:"q9",
+    q:"Ahmed decides he needs a refrigerator (not AC), then chooses Samsung over LG. First decision is ___, second is ___:",
+    options:["Selective; Primary","Primary; Selective","Patronage; Product","Inherent; Learned"],
+    answerIndex:1
+  });
+  list.push({
+    id:"q10",
+    q:"Zomato shows 'Order now, hunger won't wait' with tasty images. Motive targeted:",
+    options:["Rational motive","Inherent/Biological motive","Patronage motive","Selective motive"],
+    answerIndex:1
+  });
+
+  // --- Fill placeholders up to 100 so 5 levels x 20 works right now ---
+  // Replace these with your real Q11–Q100 later.
+  for(let i=11;i<=100;i++){
+    list.push({
+      id:`q${i}`,
+      q:`(Replace) Question ${i}: paste your MCQ here`,
+      options:["Option A","Option B","Option C","Option D"],
+      answerIndex:0
+    });
+  }
+
+  return list;
+}
