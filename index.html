@@ -4,88 +4,206 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Master MCQ</title>
+
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+
   <style>
     :root{
-      --bg1:#0b1020; --bg2:#0b2a2a;
-      --card: rgba(255,255,255,0.07);
-      --card2: rgba(255,255,255,0.10);
-      --text:#eaf0ff; --muted: rgba(234,240,255,0.65);
-      --border: rgba(255,255,255,0.12);
-      --good:#3ddc84; --bad:#ff5c7a;
-      --accent:#7c5cff; --accent2:#00d2ff;
-      --shadow: 0 18px 60px rgba(0,0,0,0.55);
-      --r:18px;
+      --bg1:#eaf4ff;      /* light sky */
+      --bg2:#d7ecff;      /* soft blue */
+      --card:#ffffff;     /* white cards */
+      --card2:#f5fbff;    /* pale card */
+      --text:#0f1f33;     /* dark navy */
+      --muted: rgba(15,31,51,0.60);
+      --border: rgba(15,31,51,0.10);
+      --accent:#4a8dff;   /* blue accent */
+      --accent2:#66d1ff;  /* cyan accent */
+      --good:#14b86a;
+      --bad:#ff4d6d;
+      --shadow: 0 18px 50px rgba(10,30,60,0.12);
+      --r:20px;
     }
+
     *{box-sizing:border-box}
     body{
       margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
       color:var(--text);
-      background: radial-gradient(1200px 800px at 20% 10%, rgba(124,92,255,0.35), transparent 60%),
-                  radial-gradient(1000px 700px at 80% 30%, rgba(0,210,255,0.28), transparent 55%),
-                  linear-gradient(135deg, var(--bg1), var(--bg2));
+      background:
+        radial-gradient(900px 650px at 20% 15%, rgba(74,141,255,0.28), transparent 55%),
+        radial-gradient(900px 650px at 85% 25%, rgba(102,209,255,0.25), transparent 55%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
       min-height:100vh;
     }
+
     .wrap{max-width:1100px;margin:0 auto;padding:26px 16px 60px}
-    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
-    .brand{display:flex;align-items:center;gap:10px}
-    .logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:var(--shadow)}
+
+    .top{
+      display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px
+    }
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{
+      width:44px;height:44px;border-radius:18px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      box-shadow: var(--shadow);
+    }
     .title{font-weight:900;letter-spacing:.2px;font-size:20px}
     .sub{color:var(--muted);font-size:13px;margin-top:2px}
-    .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:var(--card);border:1px solid var(--border);backdrop-filter: blur(10px)}
-    .dot{width:9px;height:9px;border-radius:99px;background:var(--accent2)}
+
+    .pill{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:8px 12px;border-radius:999px;
+      background: rgba(255,255,255,0.70);
+      border:1px solid var(--border);
+      box-shadow: 0 10px 24px rgba(10,30,60,0.06);
+      backdrop-filter: blur(8px);
+    }
+    .dot{width:9px;height:9px;border-radius:99px;background:var(--accent)}
+    .muted{color:var(--muted)}
     .grid{display:grid;grid-template-columns:1fr;gap:16px}
 
-    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);backdrop-filter: blur(12px)}
-    .pad{padding:16px}
-    label{font-size:12px;color:var(--muted)}
-    input{
-      width:100%;padding:12px 12px;border-radius:14px;
-      border:1px solid var(--border);background: rgba(0,0,0,0.25);
-      color:var(--text);outline:none;
+    .card{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
     }
-    input::placeholder{color:rgba(234,240,255,0.35)}
+    .pad{padding:18px}
+
+    label{font-size:12px;color:var(--muted);font-weight:700}
+    input{
+      width:100%;
+      padding:12px 12px;
+      border-radius:16px;
+      border:1px solid var(--border);
+      background: #f7fbff;
+      color: var(--text);
+      outline:none;
+      font-weight:700;
+    }
+    input::placeholder{color:rgba(15,31,51,0.35)}
+    input:focus{
+      border-color: rgba(74,141,255,0.45);
+      box-shadow: 0 0 0 4px rgba(74,141,255,0.15);
+    }
+
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media (max-width: 560px){.row{grid-template-columns:1fr}}
+
     .btnRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
     button{
-      padding:12px 14px;border-radius:14px;border:1px solid var(--border);
-      background: rgba(255,255,255,0.08);color:var(--text);cursor:pointer;font-weight:800;
-      transition: transform .12s ease, background .12s ease;
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid var(--border);
+      background: #ffffff;
+      color: var(--text);
+      cursor:pointer;
+      font-weight:900;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
     }
-    button:hover{transform:translateY(-1px);background:rgba(255,255,255,0.12)}
-    button.primary{border:none;background:linear-gradient(135deg, rgba(124,92,255,0.95), rgba(0,210,255,0.85))}
-    button.primary:hover{background:linear-gradient(135deg, rgba(124,92,255,1), rgba(0,210,255,0.95))}
-    button:disabled{opacity:.55;cursor:not-allowed;transform:none}
+    button:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 14px 34px rgba(10,30,60,0.12);
+      background: #f7fbff;
+    }
+    button.primary{
+      border:none;
+      color:white;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+    }
+    button.primary:hover{
+      background: linear-gradient(135deg, #3e82ff, #57c9ff);
+    }
+    button:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
+
     .hidden{display:none}
-    .muted{color:var(--muted)}
-    .bigCode{font-size:28px;font-weight:1000;letter-spacing:3px}
+    .bigCode{
+      font-size:30px;font-weight:1000;letter-spacing:4px;color: #0f2c55
+    }
 
     /* Game layout */
     .gameGrid{display:grid;grid-template-columns: 320px 1fr;gap:16px}
     @media (max-width: 920px){.gameGrid{grid-template-columns:1fr}}
+
     .sideTitle{display:flex;align-items:center;justify-content:space-between}
-    .scoreItem{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,0.06);border:1px solid var(--border);margin-top:10px}
-    .scoreName{font-weight:900}
-    .scoreNum{min-width:42px;text-align:center;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.10);border:1px solid var(--border);font-weight:1000}
+    .scoreItem{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:11px 12px;border-radius:16px;
+      background: #f7fbff;
+      border: 1px solid var(--border);
+      margin-top:10px;
+    }
+    .scoreName{font-weight:1000}
+    .scoreNum{
+      min-width:44px;text-align:center;padding:7px 11px;border-radius:999px;
+      background: rgba(74,141,255,0.14);
+      border:1px solid rgba(74,141,255,0.22);
+      font-weight:1000;color:#11407a;
+    }
 
     .qTop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
     .qMeta{display:flex;gap:10px;flex-wrap:wrap}
-    .qText{font-size:20px;font-weight:1000;line-height:1.35;margin:12px 0}
+
+    .qText{
+      font-size:22px;
+      font-weight:1000;
+      line-height:1.35;
+      margin:14px 0 12px;
+      color:#0f2c55;
+    }
+
     .opts{display:grid;gap:10px}
     .optBtn{
-      width:100%;text-align:left;padding:14px 14px;border-radius:16px;
-      background:rgba(255,255,255,0.07);border:1px solid var(--border);font-weight:900;
+      width:100%;
+      text-align:left;
+      padding:14px 14px;
+      border-radius:18px;
+      background:#ffffff;
+      border:1px solid var(--border);
+      font-weight:900;
+      box-shadow: 0 10px 24px rgba(10,30,60,0.06);
     }
-    .optBtn.correct{border-color: rgba(61,220,132,0.85); background: rgba(61,220,132,0.12)}
-    .optBtn.wrong{border-color: rgba(255,92,122,0.85); background: rgba(255,92,122,0.12)}
-    .optBtn.locked{opacity:.82}
-    .bar{width:200px;height:10px;border-radius:999px;background:rgba(255,255,255,0.10);border:1px solid var(--border);overflow:hidden}
-    .bar>div{height:100%;width:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));transform-origin:left;transform:scaleX(1)}
-    .timePill{padding:7px 10px;border-radius:999px;background:rgba(255,255,255,0.10);border:1px solid var(--border);font-weight:1000;min-width:50px;text-align:center}
-    .line{height:1px;background:rgba(255,255,255,0.10);margin:14px 0}
+    .optBtn:hover{background:#f7fbff}
+    .optBtn.correct{
+      border-color: rgba(20,184,106,0.45);
+      background: rgba(20,184,106,0.10);
+    }
+    .optBtn.wrong{
+      border-color: rgba(255,77,109,0.45);
+      background: rgba(255,77,109,0.10);
+    }
+    .optBtn.locked{opacity:.85}
+
+    .bar{
+      width:210px;height:10px;border-radius:999px;
+      background: rgba(15,31,51,0.08);
+      border:1px solid var(--border);
+      overflow:hidden;
+    }
+    .bar>div{
+      height:100%;
+      width:100%;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      transform-origin:left;
+      transform:scaleX(1);
+    }
+    .timePill{
+      padding:7px 10px;border-radius:999px;
+      background:#ffffff;
+      border:1px solid var(--border);
+      font-weight:1000;
+      min-width:52px;
+      text-align:center;
+      box-shadow: 0 10px 24px rgba(10,30,60,0.06);
+    }
+
+    .line{height:1px;background:rgba(15,31,51,0.08);margin:14px 0}
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="top">
@@ -102,8 +220,10 @@
     <!-- HOME -->
     <section id="homeScreen" class="grid">
       <div class="card pad">
-        <h2 style="margin:0 0 8px">Start</h2>
-        <p class="muted" style="margin:0 0 14px">Enter your name. Host creates a room, friends join using the code.</p>
+        <h2 style="margin:0 0 8px;font-weight:1000;color:#0f2c55">Start</h2>
+        <p class="muted" style="margin:0 0 14px">
+          Enter your name. Host creates a room, friends join using the code.
+        </p>
 
         <div class="row">
           <div>
@@ -128,7 +248,7 @@
       <div class="card pad">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
           <div>
-            <div class="muted">Room Code</div>
+            <div class="muted" style="font-weight:800">Room Code</div>
             <div class="bigCode" id="lobbyCode">----</div>
           </div>
           <div class="pill">Status <b id="lobbyStatus" style="margin-left:6px">waiting</b></div>
@@ -136,7 +256,7 @@
 
         <div class="line"></div>
 
-        <h3 style="margin:0 0 6px">Players</h3>
+        <h3 style="margin:0 0 6px;font-weight:1000;color:#0f2c55">Players</h3>
         <div id="lobbyPlayers" class="muted">Loading…</div>
 
         <div class="btnRow" id="lobbyHostControls" style="margin-top:14px">
@@ -150,7 +270,7 @@
       <div class="gameGrid">
         <div class="card pad">
           <div class="sideTitle">
-            <h3 style="margin:0">Scorecard</h3>
+            <h3 style="margin:0;font-weight:1000;color:#0f2c55">Scorecard</h3>
             <span class="pill">Q <b id="qNum">-</b>/20</span>
           </div>
           <div id="scoreList"></div>
@@ -181,7 +301,7 @@
     <!-- RESULTS -->
     <section id="resultsScreen" class="grid hidden">
       <div class="card pad">
-        <h2 style="margin:0 0 8px">Leaderboard</h2>
+        <h2 style="margin:0 0 8px;font-weight:1000;color:#0f2c55">Leaderboard</h2>
         <p class="muted" style="margin:0 0 14px">Winner & Runner-up</p>
         <div id="leaderboardBox"></div>
         <div class="btnRow" style="margin-top:14px">
