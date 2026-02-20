@@ -1,11 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import {
-  getFirestore, doc, setDoc, getDoc, updateDoc,
-  collection, onSnapshot, runTransaction
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
-import {
-  getAuth, signInAnonymously
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import { RAW_MCQ_TEXT } from "./rawQuestions.js";
 
 const firebaseConfig = {
@@ -14,90 +9,66 @@ const firebaseConfig = {
   projectId: "master-mcq-2ee53",
   storageBucket: "master-mcq-2ee53.firebasestorage.app",
   messagingSenderId: "643022714882",
-  appId: "1:643022714882:web:19aa55481475598cefcf1b",
-  measurementId: "G-SNP025BS5G"
+  appId: "1:643022714882:web:19aa55481475598cefcf1b"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// DOM Elements
-const home = document.getElementById("homeScreen");
-const lobby = document.getElementById("lobbyScreen");
-const game = document.getElementById("gameScreen");
-const timerBar = document.getElementById("timerBar");
-const questionText = document.getElementById("questionText");
-const optionsContainer = document.getElementById("options");
-
-let uid, roomCode, roomRef, gameData;
+let uid, roomCode, roomRef, gameData, gameTimer;
 let allQuestions = [];
-let gameTimer;
 
 function parseQuestions() {
   const blocks = RAW_MCQ_TEXT.split("---").filter(b => b.includes("**Answer:"));
   return blocks.map(block => {
     const lines = block.trim().split("\n");
-    const question = lines.find(l => l.startsWith("**")).replace(/\*\*/g, "");
-    const options = lines.filter(l => l.startsWith("- ")).map(l => l.replace("- ", ""));
-    const answerChar = lines.find(l => l.startsWith("**Answer:")).split(":")[1].trim();
-    return { question, options, answerIndex: ["A", "B", "C", "D"].indexOf(answerChar) };
+    return {
+      question: lines.find(l => l.startsWith("**")).replace(/\*\*/g, ""),
+      options: lines.filter(l => l.startsWith("- ")).map(l => l.replace("- ", "")),
+      answerIndex: ["A", "B", "C", "D"].indexOf(lines.find(l => l.startsWith("**Answer:")).split(":")[1].trim())
+    };
   });
 }
 
-signInAnonymously(auth).then(res => {
-  uid = res.user.uid;
-  allQuestions = parseQuestions();
-});
+signInAnonymously(auth).then(res => { uid = res.user.uid; allQuestions = parseQuestions(); });
 
-// Utils
-const show = (s) => {
-  document.querySelectorAll('section').forEach(sec => sec.classList.add('hidden'));
-  s.classList.remove('hidden');
-};
+const show = (s) => { document.querySelectorAll('section').forEach(sec => sec.classList.add('hidden')); s.classList.remove('hidden'); };
 
-// Host Match
+function renderMatchId(code) {
+  [...code].forEach((c, i) => { const el = document.getElementById("m" + (i + 1)); if (el) el.innerText = c; });
+}
+
+// Host logic
 document.getElementById("hostBtn").onclick = async () => {
   const name = document.getElementById("nameInput").value.trim();
   if (!name) return alert("Enter name");
-
   roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
   roomRef = doc(db, "rooms", roomCode);
-
-  // Pick 20 random questions
   const shuffled = [...allQuestions].sort(() => 0.5 - Math.random()).slice(0, 20);
-
-  await setDoc(roomRef, {
-    status: "waiting",
-    host: uid,
-    round: 1,
-    currentQuestion: 0,
-    questions: shuffled,
-    answersCount: 0,
-    showAnswer: false
-  });
-
-  await setDoc(doc(roomRef, "players", uid), { name, score: 0, roundScores: [0, 0, 0, 0, 0], hasAnswered: false });
+  await setDoc(roomRef, { status: "waiting", host: uid, round: 1, currentQuestion: 0, questions: shuffled, answersCount: 0, showAnswer: false });
+  await setDoc(doc(roomRef, "players", uid), { name, score: 0, roundScores: [0, 0, 0, 0, 0] });
   initLobby(name, roomCode);
 };
 
-// Join Match (logic remains similar, but adds roundScores array)
+// Join logic
 document.getElementById("joinBtn").onclick = async () => {
   const code = document.getElementById("roomInput").value.trim().toUpperCase();
   const name = document.getElementById("nameInput").value.trim();
+  if (!name || code.length !== 4) return alert("Fill details");
   roomRef = doc(db, "rooms", code);
   const snap = await getDoc(roomRef);
-  if (!snap.exists()) return alert("Room not found");
-
+  if (!snap.exists()) return alert("Not found");
   roomCode = code;
-  await setDoc(doc(roomRef, "players", uid), { name, score: 0, roundScores: [0, 0, 0, 0, 0], hasAnswered: false });
+  await setDoc(doc(roomRef, "players", uid), { name, score: 0, roundScores: [0, 0, 0, 0, 0] });
   initLobby(name, roomCode);
 };
 
 function initLobby(name, code) {
   document.getElementById("playerName").innerText = name;
   document.getElementById("roomLabel").innerText = "ROOM " + code;
-  show(lobby);
+  renderMatchId(code);
+  show(document.getElementById("lobbyScreen"));
   watchRoom();
 }
 
@@ -106,45 +77,36 @@ function watchRoom() {
     const list = document.getElementById("playersList");
     list.innerHTML = "";
     snap.forEach(d => {
-      const p = d.data();
-      list.innerHTML += `<div>${p.name} <span>${p.score} pts</span></div>`;
-      if (d.id === uid) document.getElementById("totalScore").innerText = p.score;
+      list.innerHTML += `<div>${d.data().name} <span>${d.data().score} pts</span></div>`;
+      if (d.id === uid) document.getElementById("totalScore").innerText = d.data().score;
     });
-    if (snap.size >= 2) document.getElementById("startBtn").disabled = false;
+    const isHost = gameData?.host === uid;
+    document.getElementById("startBtn").disabled = snap.size < 2 || !isHost;
+    document.getElementById("lobbyStatus").innerText = isHost ? (snap.size < 2 ? "Waiting for players..." : "Ready to Start!") : "Waiting for Host to start...";
   });
 
   onSnapshot(roomRef, snap => {
     gameData = snap.data();
-    if (gameData.status === "playing") {
-      show(game);
-      renderGame();
-    } else if (gameData.status === "roundEnd") {
-      showRoundWinner();
-    } else if (gameData.status === "seriesEnd") {
-      showSeriesWinner();
-    }
+    if (!gameData) return;
+    if (gameData.status === "playing") { show(document.getElementById("gameScreen")); renderGame(); }
+    else if (gameData.status === "roundEnd") { show(document.getElementById("roundWinnerScreen")); document.getElementById("nextLevelBtn").classList.toggle("hidden", gameData.host !== uid); }
+    else if (gameData.status === "seriesEnd") { showSeriesWinner(); }
   });
 }
 
 function renderGame() {
   const q = gameData.questions[gameData.currentQuestion];
-  questionText.innerText = q.question;
-  optionsContainer.innerHTML = "";
-  
-  // Reset Timer Bar
-  timerBar.style.width = "100%";
-  
+  document.getElementById("roundIndicator").innerText = `ROUND ${gameData.round} - ${gameData.currentQuestion + 1}/20`;
+  document.getElementById("questionText").innerText = q.question;
+  const container = document.getElementById("options");
+  container.innerHTML = "";
   q.options.forEach((opt, i) => {
     const div = document.createElement("div");
-    div.className = "option";
+    div.className = "option" + (gameData.showAnswer && i === q.answerIndex ? " correct" : "");
     div.innerText = opt;
-    if (gameData.showAnswer) {
-      if (i === q.answerIndex) div.classList.add("correct");
-    }
-    div.onclick = () => handleSelection(i, q.answerIndex);
-    optionsContainer.appendChild(div);
+    div.onclick = () => handleAnswer(i, q.answerIndex);
+    container.appendChild(div);
   });
-
   if (!gameData.showAnswer) startTimer();
 }
 
@@ -153,73 +115,59 @@ function startTimer() {
   let timeLeft = 20;
   gameTimer = setInterval(async () => {
     timeLeft -= 0.1;
-    timerBar.style.width = (timeLeft / 20) * 100 + "%";
-    
-    if (timeLeft <= 0) {
-      clearInterval(gameTimer);
-      if (uid === gameData.host) triggerShowAnswer();
-    }
+    document.getElementById("timerBar").style.width = (timeLeft / 20) * 100 + "%";
+    if (timeLeft <= 0) { clearInterval(gameTimer); if (uid === gameData.host) triggerNext(); }
   }, 100);
 }
 
-async function handleSelection(idx, correctIdx) {
-  const options = document.querySelectorAll(".option");
-  options.forEach(o => o.style.pointerEvents = "none");
-
-  const isCorrect = idx === correctIdx;
-  if (isCorrect) {
-    // Update Score via transaction
+async function handleAnswer(idx, correct) {
+  document.querySelectorAll(".option").forEach(o => o.style.pointerEvents = "none");
+  if (idx === correct) {
     const pRef = doc(roomRef, "players", uid);
-    await runTransaction(db, async (transaction) => {
-      const pDoc = await transaction.get(pRef);
-      const newScore = pDoc.data().score + 10;
-      const rounds = pDoc.data().roundScores;
-      rounds[gameData.round - 1] += 10;
-      transaction.update(pRef, { score: newScore, roundScores: rounds, hasAnswered: true });
+    await runTransaction(db, async (t) => {
+      const p = (await t.get(pRef)).data();
+      const rounds = p.roundScores; rounds[gameData.round - 1] += 10;
+      t.update(pRef, { score: p.score + 10, roundScores: rounds });
     });
   }
-
-  // Tell room one more player answered
   await updateDoc(roomRef, { answersCount: gameData.answersCount + 1 });
-  
-  // If everyone answered, host triggers show answer immediately
-  if (gameData.answersCount + 1 >= 2 && uid === gameData.host) {
-    triggerShowAnswer();
-  }
+  if (gameData.answersCount + 1 >= 2 && uid === gameData.host) triggerNext();
 }
 
-async function triggerShowAnswer() {
+async function triggerNext() {
+  clearInterval(gameTimer);
   await updateDoc(roomRef, { showAnswer: true });
   setTimeout(async () => {
     if (gameData.currentQuestion + 1 < 20) {
-      await updateDoc(roomRef, { 
-        currentQuestion: gameData.currentQuestion + 1, 
-        showAnswer: false,
-        answersCount: 0 
-      });
+      await updateDoc(roomRef, { currentQuestion: gameData.currentQuestion + 1, showAnswer: false, answersCount: 0 });
     } else {
       await updateDoc(roomRef, { status: "roundEnd" });
     }
-  }, 5000);
+  }, 3000);
 }
 
-// Next Round Logic
+document.getElementById("startBtn").onclick = () => updateDoc(roomRef, { status: "playing" });
+
 document.getElementById("nextLevelBtn").onclick = async () => {
-    if (gameData.round < 5) {
-        const nextQuestions = [...allQuestions].sort(() => 0.5 - Math.random()).slice(0, 20);
-        await updateDoc(roomRef, {
-            round: gameData.round + 1,
-            currentQuestion: 0,
-            status: "playing",
-            questions: nextQuestions,
-            answersCount: 0,
-            showAnswer: false
-        });
-    } else {
-        await updateDoc(roomRef, { status: "seriesEnd" });
-    }
+  if (gameData.round < 5) {
+    const shuffled = [...allQuestions].sort(() => 0.5 - Math.random()).slice(0, 20);
+    await updateDoc(roomRef, { round: gameData.round + 1, currentQuestion: 0, status: "playing", questions: shuffled, answersCount: 0, showAnswer: false });
+  } else {
+    await updateDoc(roomRef, { status: "seriesEnd" });
+  }
 };
 
-// Placeholder functions for Winner Screens
-function showRoundWinner() { show(document.getElementById("roundWinnerScreen")); }
-function showSeriesWinner() { show(document.getElementById("seriesWinnerScreen")); }
+async function showSeriesWinner() {
+  show(document.getElementById("seriesWinnerScreen"));
+  const pSnap = await getDoc(collection(roomRef, "players"));
+  let html = `<table><tr><th>Player</th><th>R1</th><th>R2</th><th>R3</th><th>R4</th><th>R5</th><th>Total</th></tr>`;
+  const players = [];
+  const querySnap = await onSnapshot(collection(roomRef, "players"), (snap) => {
+      let tableHtml = html;
+      snap.forEach(d => {
+          const p = d.data();
+          tableHtml += `<tr><td>${p.name}</td><td>${p.roundScores[0]}</td><td>${p.roundScores[1]}</td><td>${p.roundScores[2]}</td><td>${p.roundScores[3]}</td><td>${p.roundScores[4]}</td><td><strong>${p.score}</strong></td></tr>`;
+      });
+      document.getElementById("seriesStats").innerHTML = tableHtml + `</table>`;
+  });
+}
