@@ -140,9 +140,44 @@ function startLobby(name) {
   $("playerName").innerText = name;
   $("roomLabel").innerText  = "ROOM " + roomCode;
   renderRoomCode(roomCode);
+
+  // Populate copy row
+  const display = $("copyCodeDisplay");
+  if (display) display.innerText = roomCode || "----";
+
   show("lobbyScreen");
   subscribeToRoom();
   subscribeToPlayers();
+  setupCopyBtn();
+}
+
+function setupCopyBtn() {
+  const btn = $("copyCodeBtn");
+  if (!btn) return;
+  btn.onclick = () => {
+    navigator.clipboard.writeText(roomCode || "").then(() => {
+      btn.classList.add("copied");
+      $("copyLabel").innerText = "Copied!";
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        $("copyLabel").innerText = "Copy Code";
+      }, 2000);
+    }).catch(() => {
+      // Fallback for browsers without clipboard API
+      const el = document.createElement("textarea");
+      el.value = roomCode;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      btn.classList.add("copied");
+      $("copyLabel").innerText = "Copied!";
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        $("copyLabel").innerText = "Copy Code";
+      }, 2000);
+    });
+  };
 }
 
 // ─── Room Subscription ───────────────────────────────────────────────────────
