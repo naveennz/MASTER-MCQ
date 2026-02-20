@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Master MCQ - Multiplayer</title>
+    <title>Master MCQ - Series Challenge</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
@@ -12,6 +12,7 @@
             --primary: #1bb39a;
             --secondary: #2c4358;
             --accent: #2ecc71;
+            --warning: #f39c12;
             --danger: #e74c3c;
             --light: #f4f7f8;
             --dark-blue: #1f3446;
@@ -28,13 +29,13 @@
         }
 
         .hidden { display: none !important; }
-        button { cursor: pointer; transition: opacity 0.2s; border: none; font-weight: 600; }
+        button { cursor: pointer; transition: all 0.2s; border: none; font-weight: 600; }
         button:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .main-container {
             width: 95%;
             max-width: 1100px;
-            height: 600px;
+            height: 650px;
             background: var(--light);
             border-radius: 16px;
             display: flex;
@@ -42,7 +43,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
 
-        /* LEFT SIDEBAR */
+        /* SIDEBAR */
         .sidebar {
             width: 280px;
             background: var(--secondary);
@@ -52,71 +53,62 @@
             flex-direction: column;
         }
 
-        .player-profile { text-align: center; margin-bottom: 30px; }
+        .player-profile { text-align: center; margin-bottom: 20px; }
         .avatar {
-            width: 80px; height: 80px;
+            width: 60px; height: 60px;
             background: #ffb84d;
             border-radius: 50%;
             margin: 0 auto 10px;
-            border: 4px solid rgba(255,255,255,0.1);
+            border: 3px solid rgba(255,255,255,0.1);
         }
-        #playerName { font-size: 1.1rem; font-weight: 600; }
-        .total-score-box { margin-top: 10px; }
-        .total-score-box span { display: block; font-size: 0.8rem; opacity: 0.7; }
-        .total-score { font-size: 38px; font-weight: 700; color: var(--accent); }
+        .total-score { font-size: 32px; font-weight: 700; color: var(--accent); }
 
-        .players-section { flex: 1; overflow-y: auto; margin-top: 20px; }
-        .players-section h4 { font-size: 0.9rem; text-transform: uppercase; opacity: 0.6; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }
-        #playersList div { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; }
-
-        .match-id-container { margin-top: auto; padding-top: 20px; }
-        .match-id-label { font-size: 0.8rem; font-weight: 700; margin-bottom: 8px; opacity: 0.8; }
-        .match-boxes { display: flex; gap: 8px; }
-        .match-boxes div {
-            flex: 1; background: var(--dark-blue);
-            border-radius: 8px; padding: 12px 0;
-            text-align: center; font-weight: 700; font-size: 1.2rem;
-            border: 1px solid rgba(255,255,255,0.1);
+        .players-section { flex: 1; overflow-y: auto; margin-top: 10px; }
+        #playersList div { 
+            padding: 10px; 
+            background: rgba(255,255,255,0.05); 
+            margin-bottom: 8px; 
+            border-radius: 8px;
+            display: flex; 
+            justify-content: space-between; 
         }
 
-        /* RIGHT CONTENT AREA */
-        .content { flex: 1; padding: 40px; position: relative; overflow-y: auto; }
+        /* CONTENT AREA */
+        .content { flex: 1; padding: 30px; position: relative; overflow-y: auto; display: flex; flex-direction: column; }
+
+        /* TIMER BAR */
+        .timer-container { width: 100%; background: #ddd; height: 8px; border-radius: 4px; margin-bottom: 20px; overflow: hidden; }
+        #timerBar { height: 100%; background: var(--warning); width: 100%; transition: width 0.1s linear; }
+
+        /* AUTH CARD */
+        .card { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; max-width: 400px; margin: auto; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 2px solid #eee; border-radius: 8px; box-sizing: border-box; }
         
-        /* HOME SCREEN */
-        .auth-card { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; max-width: 400px; margin: 40px auto; }
-        .auth-card h2 { margin-top: 0; color: var(--secondary); }
-        .auth-card input {
-            width: 100%; padding: 12px; margin: 10px 0;
-            border: 2px solid #eee; border-radius: 8px;
-            box-sizing: border-box; font-size: 1rem;
-        }
         .btn-full { width: 100%; padding: 14px; border-radius: 8px; font-size: 1rem; margin-top: 10px; }
         .btn-green { background: var(--accent); color: white; }
         .btn-outline { background: transparent; border: 2px solid var(--secondary); color: var(--secondary); }
 
-        /* LOBBY SCREEN */
-        .lobby-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        #roomLabel { font-size: 1.4rem; font-weight: 700; color: var(--secondary); }
-        
-        /* GAME SCREEN */
+        /* GAME ELEMENTS */
         .question-box {
             background: #3a6ea5; color: #fff;
-            padding: 30px; border-radius: 12px;
-            font-size: 1.2rem; line-height: 1.5;
-            min-height: 80px; display: flex; align-items: center;
+            padding: 25px; border-radius: 12px;
+            font-size: 1.1rem; line-height: 1.4;
+            min-height: 60px;
         }
-        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px; }
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
         .option {
-            background: #fff; padding: 20px; border-radius: 10px;
-            border: 3px solid transparent; cursor: pointer;
-            transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            font-weight: 600;
+            background: #fff; padding: 18px; border-radius: 10px;
+            border: 2px solid #eee; cursor: pointer;
+            transition: all 0.2s; font-weight: 600;
         }
-        .option:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        
-        /* State Classes */
-        .correct { border-color: var(--accent) !important; background: #eafaf1 !important; color: #27ae60; }
-        .wrong { border-color: var(--danger) !important; background: #fdecea !important; color: #c0392b; }
+        .correct { background: #eafaf1 !important; border-color: var(--accent) !important; color: #27ae60; }
+        .wrong { background: #fdecea !important; border-color: var(--danger) !important; color: #c0392b; }
+
+        /* SERIES TABLE */
+        .series-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .series-table th, .series-table td { padding: 12px; border: 1px solid #ddd; text-align: center; }
+        .series-table th { background: var(--secondary); color: white; }
+        .series-table tr:nth-child(even) { background: #f9f9f9; }
     </style>
 </head>
 
@@ -127,26 +119,21 @@
     <aside class="sidebar">
         <div class="player-profile">
             <div class="avatar"></div>
-            <div id="playerName">JOINING...</div>
-            <div class="total-score-box">
-                <span>YOUR SCORE</span>
-                <div class="total-score" id="totalScore">0</div>
-            </div>
+            <div id="playerName">PLAYER</div>
+            <div class="total-score" id="totalScore">0</div>
         </div>
 
         <div class="players-section">
-            <h4>Players In Room</h4>
-            <div id="playersList">
-                </div>
+            <div id="playersList"></div>
         </div>
 
         <div class="match-id-container">
-            <div class="match-id-label">MATCH ID</div>
-            <div class="match-boxes">
-                <div id="m1">-</div>
-                <div id="m2">-</div>
-                <div id="m3">-</div>
-                <div id="m4">-</div>
+            <div style="font-size: 0.7rem; margin-bottom: 5px; opacity: 0.7;">ROOM CODE</div>
+            <div style="display:flex; gap:5px;" id="roomDisplay">
+                <div id="m1" style="background:var(--dark-blue); flex:1; padding:10px; text-align:center; border-radius:5px;">-</div>
+                <div id="m2" style="background:var(--dark-blue); flex:1; padding:10px; text-align:center; border-radius:5px;">-</div>
+                <div id="m3" style="background:var(--dark-blue); flex:1; padding:10px; text-align:center; border-radius:5px;">-</div>
+                <div id="m4" style="background:var(--dark-blue); flex:1; padding:10px; text-align:center; border-radius:5px;">-</div>
             </div>
         </div>
     </aside>
@@ -154,34 +141,45 @@
     <main class="content">
 
         <section id="homeScreen">
-            <div class="auth-card">
+            <div class="card">
                 <h2>Master MCQ</h2>
-                <p>Host a private room or join a friend</p>
-                <input type="text" id="nameInput" placeholder="Enter your name" maxlength="12">
-                <input type="text" id="roomInput" placeholder="Enter 4-digit code" maxlength="4">
-                
-                <button class="btn-full btn-green" id="hostBtn">Host New Match</button>
+                <input type="text" id="nameInput" placeholder="Enter Your Name">
+                <input type="text" id="roomInput" placeholder="Room Code (to join)">
+                <button class="btn-full btn-green" id="hostBtn">Host Series</button>
                 <button class="btn-full btn-outline" id="joinBtn">Join Match</button>
             </div>
         </section>
 
         <section id="lobbyScreen" class="hidden">
-            <div class="lobby-header">
-                <div id="roomLabel">ROOM ----</div>
-                <button class="btn-outline" style="padding: 8px 16px; border-radius: 6px;">Leave</button>
-            </div>
-            <div style="background: white; padding: 40px; border-radius: 12px; text-align: center;">
-                <p style="font-size: 1.1rem; color: #666;">Waiting for at least 2 players to start...</p>
-                <button class="btn-full btn-green" id="startBtn" disabled style="max-width: 300px;">Start Match Now</button>
+            <h2 id="roomLabel">ROOM ----</h2>
+            <div class="card" style="max-width: 100%;">
+                <p>Waiting for opponents to join...</p>
+                <button class="btn-full btn-green" id="startBtn" disabled>Start Round 1</button>
             </div>
         </section>
 
         <section id="gameScreen" class="hidden">
-            <div class="question-box" id="questionText">
-                Loading question...
+            <div id="roundIndicator" style="font-weight:700; color:var(--secondary); margin-bottom:10px;">ROUND 1 - 1/20</div>
+            <div class="timer-container"><div id="timerBar"></div></div>
+            <div class="question-box" id="questionText">Loading...</div>
+            <div class="options-grid" id="options"></div>
+        </section>
+
+        <section id="roundWinnerScreen" class="hidden">
+            <div class="card" style="max-width: 100%;">
+                <h2 id="roundResultTitle">Round Complete!</h2>
+                <p>Prepare for the next challenge.</p>
+                <button id="nextLevelBtn" class="btn-full btn-green">Next Level</button>
             </div>
-            <div class="options-grid" id="options">
-                </div>
+        </section>
+
+        <section id="seriesWinnerScreen" class="hidden">
+            <div class="card" style="max-width: 100%;">
+                <h1 id="seriesWinnerTitle">🏆 SERIES WINNER 🏆</h1>
+                <div id="seriesStats">
+                    </div>
+                <button onclick="location.reload()" class="btn-full btn-outline">Back to Home</button>
+            </div>
         </section>
 
     </main>
