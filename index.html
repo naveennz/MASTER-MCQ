@@ -1,685 +1,192 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Master MCQ</title>
+<meta charset="UTF-8" />
+<title>Master MCQ</title>
 
-  <!-- Google Font -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
-  <style>
-    :root{
-      --bgA:#0ea58f;
-      --bgB:#0b8f7b;
-      --panel:#eef2f4;
-      --dark:#2a3f54;
-      --dark2:#374e64;
+<style>
+body{
+  margin:0;
+  font-family:Inter,sans-serif;
+  background:#1bb39a;
+}
+.hidden{display:none}
+button{cursor:pointer}
 
-      --text:#122033;
-      --white:#fff;
+.main{
+  width:1200px;
+  margin:30px auto;
+  background:#f4f7f8;
+  border-radius:12px;
+  display:flex;
+  overflow:hidden;
+}
 
-      --btn:#23b05a;
-      --btn2:#1f9a4f;
+/* LEFT */
+.left{
+  width:260px;
+  background:#2c4358;
+  color:#fff;
+  padding:20px;
+  display:flex;
+  flex-direction:column;
+}
+.playerBox{
+  text-align:center;
+}
+.avatar{
+  width:70px;height:70px;
+  background:#ffb84d;
+  border-radius:50%;
+  margin:auto;
+}
+.totalScore{
+  font-size:34px;
+  font-weight:700;
+  margin-top:5px;
+}
+.playersList{
+  margin-top:20px;
+}
+.matchId{
+  margin-top:auto;
+}
+.matchBoxes{
+  display:flex;
+  gap:6px;
+}
+.matchBoxes div{
+  flex:1;
+  background:#1f3446;
+  border-radius:8px;
+  padding:10px;
+  text-align:center;
+  font-weight:700;
+}
 
-      --good:#27c76f;
-      --bad:#e84a4a;
+/* RIGHT */
+.right{
+  flex:1;
+  padding:20px;
+}
+.header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.leave{
+  background:#e74c3c;
+  border:none;
+  color:#fff;
+  padding:8px 14px;
+  border-radius:6px;
+}
 
-      --shadow: 0 24px 60px rgba(0,0,0,.22);
-      --soft: 0 10px 24px rgba(0,0,0,.12);
-    }
+/* HOME */
+.card{
+  background:#fff;
+  padding:30px;
+  border-radius:10px;
+  max-width:500px;
+  margin:auto;
+}
+.card input{
+  width:100%;
+  padding:10px;
+  margin:10px 0;
+}
+.green{
+  background:#2ecc71;
+  color:#fff;
+  border:none;
+  padding:12px;
+  border-radius:6px;
+}
 
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family:"Manrope",system-ui,-apple-system,Segoe UI,Roboto,Arial;
-      color:var(--text);
-      background:
-        linear-gradient(135deg, rgba(255,255,255,.06) 25%, transparent 25%) 0 0/48px 48px,
-        linear-gradient(225deg, rgba(255,255,255,.06) 25%, transparent 25%) 0 0/48px 48px,
-        linear-gradient(315deg, rgba(255,255,255,.06) 25%, transparent 25%) 0 0/48px 48px,
-        linear-gradient(45deg,  rgba(255,255,255,.06) 25%, transparent 25%) 0 0/48px 48px,
-        linear-gradient(180deg, var(--bgA), var(--bgB));
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:28px 16px;
-    }
-
-    .hidden{display:none !important;}
-
-    .frame{
-      width:min(1180px, 100%);
-      height:min(680px, 100%);
-      border-radius: 10px;
-      box-shadow: var(--shadow);
-      overflow:hidden;
-      display:grid;
-      grid-template-columns: 340px 1fr;
-      background: var(--panel);
-    }
-
-    /* Sidebar */
-    .side{
-      background: linear-gradient(180deg, #2a3f54, #24384c);
-      color: rgba(255,255,255,.92);
-      display:flex;
-      flex-direction:column;
-      border-right: 1px solid rgba(255,255,255,.08);
-    }
-
-    .profile{
-      padding:16px 16px 12px;
-      display:flex;
-      gap:12px;
-      align-items:flex-start;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-    }
-    .avatar{
-      width:54px;height:54px;border-radius:999px;
-      background: radial-gradient(circle at 30% 25%, #ffcf5a, #ff8b2d);
-      box-shadow: var(--soft);
-      display:grid;place-items:center;
-      font-weight:900;
-      color:#152436;
-      flex:0 0 auto;
-    }
-    .pInfo{min-width:0;flex:1}
-    .pName{
-      font-weight:1000;
-      letter-spacing:.2px;
-      line-height:1.05;
-      font-size:16px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .pSub{
-      font-size:12px;
-      color:rgba(255,255,255,.7);
-      margin-top:4px;
-      font-weight:800;
-    }
-    .lvl{
-      font-size:12px;
-      font-weight:1000;
-      padding:6px 10px;
-      border-radius:999px;
-      background: rgba(255,255,255,.12);
-      border:1px solid rgba(255,255,255,.18);
-      white-space:nowrap;
-      margin-top:4px;
-    }
-
-    /* Total score (white visible) */
-    .totalScore{
-      margin-top:10px;
-      display:flex;
-      flex-direction:column;
-      gap:4px;
-      color:#fff;
-    }
-    .totalScore .label{
-      font-size:12px;
-      font-weight:1000;
-      color:rgba(255,255,255,.85);
-    }
-    .totalScore .value{
-      font-size:28px;
-      font-weight:1000;
-      color:#ffffff;
-      line-height:1;
-    }
-
-    .sideSection{
-      padding:12px 16px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-    }
-    .sideTitle{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      font-weight:1000;
-      margin-bottom:10px;
-    }
-    .badge{
-      padding:6px 10px;
-      border-radius:999px;
-      background: rgba(255,255,255,.12);
-      border:1px solid rgba(255,255,255,.18);
-      font-size:12px;
-      font-weight:1000;
-      display:inline-flex;
-      gap:8px;
-      align-items:center;
-    }
-    .badge .dot{
-      width:8px;height:8px;border-radius:99px;background:#3ce38f;
-      box-shadow:0 0 0 3px rgba(60,227,143,.18);
-    }
-
-    .playersList{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      padding:0;
-      margin:0;
-      list-style:none;
-    }
-    .playerRow{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding:10px 10px;
-      border-radius: 12px;
-      background: rgba(0,0,0,.12);
-      border:1px solid rgba(255,255,255,.08);
-    }
-    .miniAvatar{
-      width:30px;height:30px;border-radius:999px;
-      background: radial-gradient(circle at 30% 25%, #ffd267, #ff8f38);
-      display:grid;place-items:center;
-      color:#17283a;
-      font-weight:1000;
-      font-size:12px;
-      flex:0 0 auto;
-    }
-    .playerMeta{display:flex;flex-direction:column;gap:1px;min-width:0}
-    .playerMeta b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .playerMeta span{font-size:11px;color:rgba(255,255,255,.72);font-weight:900}
-    .points{
-      margin-left:auto;
-      font-weight:1000;
-      font-size:12px;
-      padding:6px 10px;
-      border-radius:999px;
-      background: rgba(255,255,255,.10);
-      border:1px solid rgba(255,255,255,.15);
-      white-space:nowrap;
-    }
-
-    /* Match ID area */
-    .roomBox{
-      margin-top:auto;
-      padding:14px 16px 16px;
-      border-top:1px solid rgba(255,255,255,.08);
-    }
-    .roomLabel{
-      font-size:12px;
-      color:rgba(255,255,255,.85);
-      font-weight:1000;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-    }
-    .roomLabel small{
-      font-size:12px;
-      font-weight:1000;
-      color:#ffffff;
-      padding:4px 10px;
-      border-radius:999px;
-      background: rgba(0,0,0,.18);
-      border:1px solid rgba(255,255,255,.14);
-      white-space:nowrap;
-    }
-
-    .roomCode{
-      margin-top:10px;
-      display:flex;
-      gap:8px;
-      align-items:center;
-    }
-    .digit{
-      width:52px;height:52px;
-      border-radius:12px;
-      background: rgba(0,0,0,.18);
-      border:1px solid rgba(255,255,255,.14);
-      display:grid;place-items:center;
-      font-weight:1000;
-      letter-spacing:1px;
-      font-size:18px;
-      color:#fff;
-    }
-
-    /* Main area */
-    .main{display:flex;flex-direction:column;background: var(--panel);}
-
-    .topbar{
-      background: linear-gradient(180deg, var(--dark2), #31485e);
-      color: rgba(255,255,255,.92);
-      padding:12px 14px;
-      display:flex;
-      align-items:center;
-      gap:12px;
-      border-bottom: 1px solid rgba(255,255,255,.10);
-    }
-    .topLeft{display:flex;flex-direction:column;gap:2px;min-width: 280px;}
-    .topLeft .big{font-weight:1000;font-size:14px;letter-spacing:.2px;}
-    .topLeft .small{font-size:12px;color: rgba(255,255,255,.72);font-weight:900;}
-
-    .progress{flex:1;display:flex;gap:10px;align-items:center;}
-    .segBar{
-      flex:1;height:7px;border-radius:999px;
-      background: rgba(255,255,255,.18);
-      overflow:hidden;border:1px solid rgba(255,255,255,.16);
-      position:relative;
-    }
-    .segFill{
-      position:absolute;left:0;top:0;height:100%;
-      width:0%;
-      background: linear-gradient(90deg, #ffb451, #ff6f4b);
-      transition: width .2s linear;
-    }
-    .timeChip{
-      font-weight:1000;font-size:12px;
-      padding:7px 10px;border-radius:999px;
-      background: rgba(0,0,0,.18);
-      border:1px solid rgba(255,255,255,.16);
-      min-width:70px;text-align:center;
-    }
-    .topRight{margin-left:auto;display:flex;gap:10px;align-items:center}
-    .btn{
-      border:none;cursor:pointer;font-weight:1000;border-radius: 6px;
-      padding:10px 14px;background: #e74b3b;color:white;
-      box-shadow: 0 10px 18px rgba(0,0,0,.20);
-    }
-    .btn:active{transform: translateY(1px)}
-
-    .center{
-      flex:1;display:flex;align-items:center;justify-content:center;
-      padding:18px;background: var(--panel);
-    }
-
-    /* Home */
-    .homeWrap{
-      width:min(720px, 100%);
-      background:#ffffff;border-radius: 10px;border:1px solid rgba(10,25,40,.10);
-      box-shadow: var(--soft);overflow:hidden;
-    }
-    .homeHead{padding:18px 18px 14px;background: linear-gradient(180deg, #3a556e, #2f475e);color:white;}
-    .homeHead h1{margin:0;font-weight:1000;letter-spacing:.2px;font-size:26px}
-    .homeHead p{margin:8px 0 0;color:rgba(255,255,255,.78);font-weight:900;font-size:13px}
-    .homeBody{padding:16px 18px 18px;display:grid;gap:12px}
-    .homeActions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-    .homeActions button{flex:1}
-    .field{
-      background:#fff;border:1px solid rgba(10,25,40,.12);border-radius: 10px;
-      padding:10px 12px;display:flex;flex-direction:column;gap:8px;
-    }
-    .field label{font-size:12px;font-weight:1000;color:rgba(44,63,82,.75);}
-    .field input{
-      border:none;outline:none;font-weight:900;font-size:14px;background:transparent;color:#1a2d42;
-    }
-    .field input::placeholder{color:rgba(26,45,66,.35)}
-    .bigGreen{
-      padding:14px 18px;border-radius: 8px;border:none;cursor:pointer;color:white;font-weight:1000;
-      background: linear-gradient(180deg, var(--btn), var(--btn2));
-      box-shadow: 0 12px 20px rgba(0,0,0,.18);
-    }
-    .bigGreen:disabled{opacity:.6;cursor:not-allowed}
-    .smallBtn{
-      padding:12px 14px;border-radius: 8px;border:1px solid rgba(10,25,40,.14);
-      background:#fff;cursor:pointer;font-weight:1000;color:#2c3f52;
-      box-shadow: 0 10px 16px rgba(0,0,0,.08);white-space:nowrap;
-    }
-    .miniNote{display:flex;gap:10px;align-items:center;font-size:12px;color:rgba(44,63,82,.72);font-weight:1000;}
-    .dot2{width:9px;height:9px;border-radius:99px;background:#3ce38f;box-shadow:0 0 0 3px rgba(60,227,143,.18)}
-
-    /* Lobby */
-    .lobbyWrap{
-      width:min(820px, 100%);
-      background: var(--white);
-      border-radius: 10px;
-      border:1px solid rgba(10,25,40,.10);
-      box-shadow: var(--soft);
-      overflow:hidden;
-    }
-    .lobbyHead{
-      padding:14px 16px;
-      display:flex;align-items:center;justify-content:space-between;
-      background: #f1f4f7;border-bottom:1px solid rgba(10,25,40,.10);
-      font-weight:1000;color:#2c3f52;
-    }
-    .lobbyHeadLeft{display:flex;align-items:baseline;gap:10px}
-    .lobbyHead span{font-size:12px;color:rgba(44,63,82,.65);font-weight:1000;}
-    .lobbyCodeBadge{
-      padding:8px 12px;
-      border-radius:999px;
-      background:#ffffff;
-      border:1px solid rgba(10,25,40,.12);
-      display:flex;
-      align-items:center;
-      gap:10px;
-      font-weight:1000;
-      box-shadow: 0 10px 16px rgba(0,0,0,.08);
-    }
-    .lobbyCodeBadge .dot{width:10px;height:10px;border-radius:99px;background:#3ce38f;box-shadow:0 0 0 3px rgba(60,227,143,.18)}
-    .lobbyCodeBadge .label{opacity:.75;font-size:12px}
-    .lobbyCodeBadge .code{letter-spacing:1px;font-size:13px}
-
-    .lobbyBody{padding:16px;display:grid;gap:14px}
-    .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .modeGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .modeCard{
-      border:1px solid rgba(10,25,40,.12);
-      border-radius: 12px;padding:16px;background:#fff;
-      display:flex;flex-direction:column;gap:8px;min-height:96px;
-    }
-    .modeCard b{font-weight:1000;color:#2c3f52}
-    .modeCard p{margin:0;color:rgba(44,63,82,.65);font-weight:900;font-size:12px;line-height:1.35}
-    .modeCard.active{outline: 2px solid rgba(255,135,60,.65);border-color: rgba(255,135,60,.35);}
-    .lobbyFooter{
-      display:flex;gap:12px;align-items:center;
-      padding:14px 16px;background:#f1f4f7;border-top:1px solid rgba(10,25,40,.10);
-    }
-    .lobbyFooter .spacer{flex:1}
-
-    /* Game */
-    .qWrap{width:min(860px, 100%);display:flex;flex-direction:column;align-items:center;gap:14px;}
-    .catChip{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:7px 12px;border-radius:999px;background:#ffffff;
-      border:1px solid rgba(10,25,40,.12);box-shadow: var(--soft);
-      font-weight:1000;color:#2c3f52;font-size:12px;
-    }
-    .qCard{
-      width:100%;border-radius: 12px;
-      background: linear-gradient(180deg, #4e6b86, #3a556e);
-      color:white;padding:18px 18px;text-align:center;box-shadow: var(--soft);
-      border:1px solid rgba(0,0,0,.10);
-      font-weight:1000;line-height:1.35;font-size:18px;
-    }
-    .answers{width:100%;display:grid;grid-template-columns: 1fr 1fr;gap:14px;}
-    .ansBtn{
-      border-radius: 12px;border:1px solid rgba(10,25,40,.14);
-      background:#ffffff;padding:16px 14px;cursor:pointer;
-      box-shadow: 0 10px 16px rgba(0,0,0,.08);
-      font-weight:1000;color:#2c3f52;position:relative;min-height:58px;
-      display:flex;align-items:center;justify-content:center;text-align:center;
-      transition: transform .08s ease;
-    }
-    .ansBtn:hover{transform: translateY(-1px)}
-    .ansBtn:active{transform: translateY(0px)}
-    .ansBtn:disabled{opacity:.9;cursor:not-allowed;transform:none}
-    .keyTag{
-      position:absolute;bottom:8px;left:50%;transform: translateX(-50%);
-      font-size:10px;font-weight:1000;padding:4px 7px;border-radius:6px;
-      background: rgba(44,63,82,.12);border:1px solid rgba(44,63,82,.15);color:#2c3f52;
-    }
-    .ansBtn.correct{background: rgba(39,199,111,.16);border-color: rgba(39,199,111,.55);box-shadow: 0 12px 18px rgba(39,199,111,.18);}
-    .ansBtn.wrong{background: rgba(232,74,74,.14);border-color: rgba(232,74,74,.55);box-shadow: 0 12px 18px rgba(232,74,74,.18);}
-    .ansBtn.selected{outline:2px solid rgba(44,63,82,.35)}
-    .hint{
-      font-size:12px;font-weight:1000;color:rgba(44,63,82,.70);
-      background: #ffffff;border:1px solid rgba(10,25,40,.12);
-      border-radius: 12px;padding:10px 12px;box-shadow: 0 10px 16px rgba(0,0,0,.06);
-      width:100%;text-align:center;
-    }
-
-    /* Results */
-    .resultWrap{
-      width:min(820px, 100%);
-      background:#ffffff;border-radius: 10px;border:1px solid rgba(10,25,40,.10);
-      box-shadow: var(--soft);overflow:hidden;
-    }
-    .resultHead{
-      padding:12px 14px;display:flex;justify-content:space-between;align-items:center;color:white;
-      background: linear-gradient(180deg, #2cc06a, #1f9b52);font-weight:1000;
-    }
-    .resultBody{padding:16px}
-    .resultFooter{
-      padding:14px 16px;display:flex;gap:12px;justify-content:flex-end;
-      border-top:1px solid rgba(10,25,40,.10);background:#f1f4f7;flex-wrap:wrap;
-    }
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:10px 10px;border-bottom:1px solid rgba(10,25,40,.10);text-align:left}
-    th{font-weight:1000;color:#2c3f52}
-    td{font-weight:900;color:#2c3f52}
-    .pill{
-      display:inline-block;
-      padding:4px 10px;
-      border-radius:999px;
-      background: rgba(10,25,40,.06);
-      border:1px solid rgba(10,25,40,.10);
-      font-weight:1000;
-      font-size:12px;
-      white-space:nowrap;
-    }
-
-    @media (max-width: 920px){
-      .frame{grid-template-columns: 1fr}
-      .side{display:none}
-      .row2{grid-template-columns:1fr}
-      body{padding:14px 10px}
-    }
-    @media (max-width: 560px){
-      .answers{grid-template-columns:1fr}
-      .progress{display:none}
-      .frame{height:auto}
-      .center{padding:14px}
-    }
-  </style>
+/* GAME */
+.question{
+  background:#3a6ea5;
+  color:#fff;
+  padding:20px;
+  border-radius:10px;
+}
+.options{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:15px;
+  margin-top:20px;
+}
+.option{
+  background:#fff;
+  padding:15px;
+  border-radius:8px;
+  border:2px solid transparent;
+}
+.correct{border-color:#2ecc71;background:#eafaf1}
+.wrong{border-color:#e74c3c;background:#fdecea}
+</style>
 </head>
 
 <body>
-  <div class="frame">
 
-    <!-- SIDEBAR -->
-    <aside class="side">
-      <div class="profile">
-        <div class="avatar">🙂</div>
+<div class="main">
 
-        <div class="pInfo">
-          <div class="pName" id="sidebarName">PLAYER</div>
-          <div class="pSub">Beginner</div>
-
-          <div class="totalScore">
-            <div class="label">Total</div>
-            <div class="value" id="totalScore">0</div>
-          </div>
-        </div>
-
-        <div class="lvl" id="levelPill">Level 1/5</div>
-      </div>
-
-      <div class="sideSection">
-        <div class="sideTitle">
-          <div>Players</div>
-          <div class="badge"><span class="dot"></span><span id="lobbyStatus">waiting</span></div>
-        </div>
-
-        <div id="scoreList">
-          <ul class="playersList" id="playersList">
-            <!-- filled by JS -->
-          </ul>
-        </div>
-      </div>
-
-      <div class="roomBox">
-        <div class="roomLabel">
-          <span>MATCH ID</span>
-          <small id="roomIdText">----</small>
-        </div>
-        <div class="roomCode" id="roomDigits">
-          <div class="digit">-</div><div class="digit">-</div><div class="digit">-</div><div class="digit">-</div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- MAIN -->
-    <main class="main">
-
-      <!-- TOP BAR -->
-      <div class="topbar">
-        <div class="topLeft">
-          <div class="big" id="topTitle">Match lobby</div>
-          <div class="small" id="topSub">WAITING FOR PLAYERS</div>
-        </div>
-
-        <div class="progress">
-          <div class="segBar"><div class="segFill" id="timerFill"></div></div>
-          <div class="timeChip" id="timerText">--</div>
-        </div>
-
-        <div class="topRight">
-          <button class="btn" id="leaveBtn" type="button">Leave Match</button>
-        </div>
-      </div>
-
-      <!-- CENTER -->
-      <div class="center">
-
-        <!-- HOME -->
-        <section id="homeScreen" class="homeWrap">
-          <div class="homeHead">
-            <h1>Master MCQ Rooms</h1>
-            <p>Host a match • Join with code • 5 levels (20 questions each)</p>
-          </div>
-          <div class="homeBody">
-            <div class="field">
-              <label>Your name</label>
-              <input id="nameInput" placeholder="e.g., Naveen" />
-            </div>
-            <div class="field">
-              <label>Room code (for Join)</label>
-              <input id="roomCodeInput" placeholder="e.g., ABCD" />
-            </div>
-
-            <div class="homeActions">
-              <button class="bigGreen" id="hostBtn" type="button">Host Match</button>
-              <button class="smallBtn" id="joinBtn" type="button">Join Match</button>
-            </div>
-
-            <div class="miniNote">
-              <span class="dot2"></span>
-              <span id="authStatus">Signing in…</span>
-            </div>
-          </div>
-        </section>
-
-        <!-- LOBBY -->
-        <section id="lobbyScreen" class="lobbyWrap hidden">
-          <div class="lobbyHead">
-            <div class="lobbyHeadLeft">
-              <div>Match lobby</div>
-              <span id="lobbyHint">WAITING FOR PLAYERS</span>
-            </div>
-
-            <!-- ✅ BIG CLEAR ROOM CODE -->
-            <div class="lobbyCodeBadge" title="Room code">
-              <span class="dot"></span>
-              <span class="label">ROOM</span>
-              <span class="code" id="roomCodePill">----</span>
-            </div>
-          </div>
-
-          <div class="lobbyBody">
-            <div class="row2">
-              <div class="field">
-                <label>Match Privacy</label>
-                <input value="Private" readonly />
-              </div>
-              <div class="field">
-                <label>Max. Players</label>
-                <input value="2 players" readonly />
-              </div>
-            </div>
-
-            <div class="modeGrid">
-              <div class="modeCard active">
-                <b>Versus</b>
-                <p>1 vs 1 room match. Answer fast and score points.</p>
-              </div>
-              <div class="modeCard">
-                <b>Hardcore (Later)</b>
-                <p>More players, faster timer, advanced settings (future).</p>
-              </div>
-              <div class="modeCard">
-                <b>Co-op (Later)</b>
-                <p>Team up and play together (future).</p>
-              </div>
-              <div class="modeCard">
-                <b>Teams (Later)</b>
-                <p>Play as teams (future).</p>
-              </div>
-            </div>
-
-            <div class="field">
-              <label>Players joined</label>
-              <div id="lobbyPlayers" style="font-weight:1000;color:#2c3f52">Loading…</div>
-            </div>
-          </div>
-
-          <div class="lobbyFooter">
-            <button class="smallBtn" type="button" id="copyCodeBtn">Invite Friends</button>
-            <div class="spacer"></div>
-            <button class="bigGreen" id="startBtn" type="button">Start Match</button>
-          </div>
-        </section>
-
-        <!-- GAME -->
-        <section id="gameScreen" class="qWrap hidden">
-          <div class="catChip" id="phaseChip">
-            <span id="phasePill">question</span>
-          </div>
-
-          <div class="qCard" id="questionCard">
-            <div id="questionText">—</div>
-          </div>
-
-          <div class="answers" id="optionsArea"></div>
-
-          <div class="hint" id="answerInfo">Choose an answer</div>
-        </section>
-
-        <!-- RESULTS -->
-        <section id="resultsScreen" class="resultWrap hidden">
-          <div class="resultHead">
-            <div id="resultTitle">🏆 Match finished</div>
-            <div id="resultTime">—</div>
-          </div>
-
-          <div class="resultBody">
-            <div id="leaderboardBox"></div>
-          </div>
-
-          <div class="resultFooter">
-            <button class="smallBtn" id="backHomeBtn" type="button">Back to Home</button>
-            <button class="bigGreen hidden" id="rematchBtn" type="button">
-              <span id="rematchLabel">Rematch to Level 2</span>
-            </button>
-          </div>
-        </section>
-
-      </div>
-    </main>
+<!-- LEFT -->
+<div class="left">
+  <div class="playerBox">
+    <div class="avatar"></div>
+    <div id="playerName">PLAYER</div>
+    <div class="totalScore" id="totalScore">0</div>
   </div>
 
-  <script type="module" src="app.js?v=7"></script>
+  <div class="playersList" id="playersList"></div>
 
-  <script>
-    // Copy room code
-    const copyBtn = document.getElementById("copyCodeBtn");
-    copyBtn?.addEventListener("click", async ()=>{
-      const code = document.getElementById("roomCodePill")?.textContent?.trim() || "";
-      if(!code || code === "----") return;
-      try{
-        await navigator.clipboard.writeText(code);
-        copyBtn.textContent = "Copied!";
-        setTimeout(()=>copyBtn.textContent="Invite Friends", 900);
-      }catch(e){
-        alert("Copy failed. Code: " + code);
-      }
-    });
+  <div class="matchId">
+    MATCH ID
+    <div class="matchBoxes">
+      <div id="m1">-</div>
+      <div id="m2">-</div>
+      <div id="m3">-</div>
+      <div id="m4">-</div>
+    </div>
+  </div>
+</div>
 
-    // Leave match (simple reload)
-    document.getElementById("leaveBtn")?.addEventListener("click", ()=> location.reload());
-  </script>
+<!-- RIGHT -->
+<div class="right">
+
+<!-- HOME -->
+<section id="homeScreen">
+  <div class="card">
+    <h2>Master MCQ Rooms</h2>
+    <input id="nameInput" placeholder="Your name">
+    <input id="roomInput" placeholder="Room code (optional)">
+    <button class="green" id="hostBtn">Host Match</button>
+    <button id="joinBtn">Join Match</button>
+  </div>
+</section>
+
+<!-- LOBBY -->
+<section id="lobbyScreen" class="hidden">
+  <div class="header">
+    <div>Match lobby</div>
+    <button class="leave">Leave</button>
+  </div>
+  <p id="roomLabel"></p>
+  <button class="green" id="startBtn" disabled>Start Match</button>
+</section>
+
+<!-- GAME -->
+<section id="gameScreen" class="hidden">
+  <div class="question" id="questionText"></div>
+  <div class="options" id="options"></div>
+</section>
+
+</div>
+</div>
+
+<script type="module" src="app.js"></script>
 </body>
 </html>
-
-
