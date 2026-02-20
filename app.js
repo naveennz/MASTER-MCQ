@@ -42,20 +42,41 @@ const TIMER_MS = 20_000;
 let renderedQIndex = -1;
 
 // ─── Parse Questions ──────────────────────────────────────────────────────────
+// File format per block:
+//   **1. Question text?**
+//   - A) Option one
+//   - B) Option two
+//   - C) Option three
+//   - D) Option four
+//   **Answer: B**
 function parseQuestions() {
   return RAW_MCQ_TEXT
     .split("---")
     .filter(b => b.includes("**Answer:"))
     .map(block => {
-      const lines = block.trim().split("\n");
-      return {
-        question:    lines.find(l => l.startsWith("**")).replace(/\*\*/g, ""),
-        options:     lines.filter(l => l.startsWith("- ")).map(l => l.replace("- ", "")),
-        answerIndex: ["A","B","C","D"].indexOf(
-          lines.find(l => l.startsWith("**Answer:")).split(":")[1].trim()
-        )
-      };
-    });
+      const lines = block.trim().split("\n").map(l => l.trim()).filter(Boolean);
+
+      // Question: ** line that is NOT the Answer line
+      const qLine = lines.find(l => l.startsWith("**") && !l.startsWith("**Answer"));
+      const question = qLine
+        ? qLine.replace(/^\*+/, "").replace(/\*+$/, "").replace(/^\d+\.\s*/, "").trim()
+        : "";
+
+      // Options: "- A) text", "- B) text", etc.
+      const options = lines
+        .filter(l => /^-\s*[A-D]\)/.test(l))
+        .map(l => l.replace(/^-\s*[A-D]\)\s*/, "").trim());
+
+      // Answer letter from "**Answer: B**"
+      const ansLine = lines.find(l => l.startsWith("**Answer:"));
+      const ansLetter = ansLine
+        ? ansLine.replace(/\*+/g, "").replace("Answer:", "").trim().charAt(0).toUpperCase()
+        : "A";
+      const answerIndex = Math.max(0, ["A","B","C","D"].indexOf(ansLetter));
+
+      return { question, options, answerIndex };
+    })
+    .filter(q => q.question && q.options.length === 4);
 }
 
 // ─── Auth Boot ────────────────────────────────────────────────────────────────
