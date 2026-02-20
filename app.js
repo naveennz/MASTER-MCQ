@@ -246,22 +246,27 @@ function renderQuestion() {
   const letters = ["A","B","C","D"];
 
   $("roundIndicator").innerText = `ROUND ${gameData.round}  ·  Q ${gameData.currentQuestion + 1}/20`;
-  $("qBadge").innerText         = `Question ${gameData.currentQuestion + 1} of 20`;
+  $("qTag").innerText           = `Question ${gameData.currentQuestion + 1} of 20`;
   $("questionText").innerText   = q.question;
 
   const container = $("options");
   container.innerHTML = "";
 
   q.options.forEach((opt, i) => {
-    const div        = document.createElement("div");
-    div.className    = "option";
-    div.dataset.letter = letters[i];
-    div.innerText    = opt;
+    const div = document.createElement("div");
+    div.className = "opt";
 
-    // Only show THIS player's selection (never others')
+    const badge = document.createElement("span");
+    badge.className = "opt-letter";
+    badge.innerText = letters[i];
+    div.appendChild(badge);
+
+    const txt = document.createElement("span");
+    txt.innerText = opt;
+    div.appendChild(txt);
+
     if (hasAnswered && i === mySelection) div.classList.add("marked");
-    if (hasAnswered) div.dataset.locked = "true"; // prevent re-clicking
-
+    if (hasAnswered) div.dataset.locked = "true";
     if (!hasAnswered) div.onclick = () => handleAnswer(i);
     container.appendChild(div);
   });
@@ -276,11 +281,20 @@ function revealQuestion() {
   container.innerHTML = "";
 
   q.options.forEach((opt, i) => {
-    const div        = document.createElement("div");
-    div.className    = "option";
-    div.dataset.letter = letters[i];
+    const div = document.createElement("div");
+    div.className = "opt";
     div.dataset.locked = "true";
-    div.innerText    = opt;
+
+    // Letter badge
+    const badge = document.createElement("span");
+    badge.className = "opt-letter";
+    badge.innerText = letters[i];
+    div.appendChild(badge);
+
+    // Option text
+    const txt = document.createElement("span");
+    txt.innerText = opt;
+    div.appendChild(txt);
 
     if (i === q.answerIndex) {
       div.classList.add("correct");
