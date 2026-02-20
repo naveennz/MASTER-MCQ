@@ -1,30 +1,24 @@
-// app.js (Firebase + Firestore realtime 1v1 MCQ)
+/* app.js — 2-player MCQ room game (Firebase + Firestore)
+   - Lobby Start button enables only for host when 2 players joined
+   - 20 questions per level, 5 levels total (100 questions)
+   - 20s answer time + 5s reveal time
+   - Shows room code in lobby (top pill) + bottom match id boxes
+   - Anonymous auth
+   IMPORTANT: This file expects the HTML IDs/classes listed in the "DOM IDS" section below.
+*/
 
-// Firebase (CDN modules)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import {
-  getAuth,
-  onAuthStateChanged,
-  signInAnonymously
+  getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot,
+  collection, query, where, getDocs, serverTimestamp, increment
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import {
+  getAuth, signInAnonymously, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  runTransaction,
-  serverTimestamp,
-  onSnapshot,
-  collection,
-  query,
-  orderBy
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
-
-/* -----------------------------
-   0) Firebase Config (YOUR PROJECT)
--------------------------------- */
+/* =========================
+   ✅ 1) Firebase config
+   ========================= */
 const firebaseConfig = {
   apiKey: "AIzaSyDg4OZWHV2AAR6_h40oQ3_16KxS5gmuFtI",
   authDomain: "master-mcq-2ee53.firebaseapp.com",
@@ -36,918 +30,803 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
-/* -----------------------------
-   1) DOM
--------------------------------- */
-const $ = (id) => document.getElementById(id);
+/* =========================
+   ✅ 2) DOM IDs expected
+   =========================
+   Screens:
+   - homeScreen, lobbyScreen, gameScreen, resultsScreen
 
-const homeScreen = $("homeScreen");
-const lobbyScreen = $("lobbyScreen");
-const gameScreen = $("gameScreen");
-const resultsScreen = $("resultsScreen");
+   Home inputs/buttons:
+   - playerNameInput
+   - hostBtn
+   - joinBtn
+   - joinCodeInput
 
-const authStatus = $("authStatus");
-const nameInput = $("nameInput");
-const roomCodeInput = $("roomCodeInput");
+   Lobby:
+   - startBtn
+   - copyCodeBtn
+   - leaveBtn
+   - roomCodePill (text)
+   - matchIdBoxes (4 boxes container OR 4 spans with data-matchbox)
+   - playersList (ul/div)
+   - leftPlayerName (top-left name text)
+   - leftTotalScore (top-left total score)
+   - leftLevelPill (Level 1/5 text)
 
-const hostBtn = $("hostBtn");
-const joinBtn = $("joinBtn");
-const startBtn = $("startBtn");
-const rematchBtn = $("rematchBtn");
-const rematchLabel = $("rematchLabel");
-const backHomeBtn = $("backHomeBtn");
+   Game:
+   - qIndexText (e.g. "Question 3/20")
+   - timerText  (e.g. "20")
+   - timerBar   (progress bar element)
+   - qText
+   - optBtns (buttons with data-opt="0..3" OR ids opt0,opt1,opt2,opt3)
+   - leftScoreYou, leftScoreOther (scoreboard in left panel)
 
-const sidebarName = $("sidebarName");
-const totalScoreEl = $("totalScore");
-const levelPill = $("levelPill");
+   Results:
+   - leaderboardBox (container)
+   - rematchBtn
+   - resultsTitle
+*/
 
-const lobbyStatus = $("lobbyStatus");
-const topTitle = $("topTitle");
-const topSub = $("topSub");
-const timerText = $("timerText");
-const timerFill = $("timerFill");
-
-const roomIdText = $("roomIdText");
-const roomDigits = $("roomDigits");
-const roomCodePill = $("roomCodePill");
-
-const playersList = $("playersList");
-const lobbyPlayers = $("lobbyPlayers");
-const lobbyHint = $("lobbyHint");
-
-const phasePill = $("phasePill");
-const questionText = $("questionText");
-const optionsArea = $("optionsArea");
-const answerInfo = $("answerInfo");
-
-const leaderboardBox = $("leaderboardBox");
-const resultTitle = $("resultTitle");
-const resultTime = $("resultTime");
-
-/* -----------------------------
-   2) Game Settings
--------------------------------- */
-const LEVELS = 5;
-const QUESTIONS_PER_LEVEL = 20;
-const QUESTION_SECONDS = 20;
-const REVEAL_SECONDS = 5;
-const POINTS_PER_CORRECT = 10;
-
-/* -----------------------------
-   3) Questions Bank
-   ✅ Replace this with your 100 MCQs if needed.
-   Each question: { id, q, options: [A,B,C,D], answerIndex }
--------------------------------- */
-const QUESTIONS = buildQuestionsFromYourBank();
-
-// NOTE: If you want, you can replace the function above with your own array directly.
-// const QUESTIONS = [ {id:"q1", q:"...", options:[".."], answerIndex:0 }, ... ];
-
-/* -----------------------------
-   4) State
--------------------------------- */
-let uid = null;
-let me = { name: "PLAYER" };
-
+/* =========================
+   ✅ 3) State
+   ========================= */
+let myUid = null;
+let myName = "Player";
 let currentRoomCode = null;
+
+let roomState = null;
+let playersState = {}; // { uid: {name, score, totalScore, levelScores:{1:..}, joinedAt } }
+
 let roomUnsub = null;
 let playersUnsub = null;
 
-let roomState = null;
-let playersState = [];
+let localTimer = null;
+let localPhase = null; // "question" | "reveal"
 
-let tickInterval = null;
+/* =========================
+   ✅ 4) Helpers
+   ========================= */
+function $(id){ return document.getElementById(id); }
 
-/* -----------------------------
-   5) Helpers
--------------------------------- */
-function showScreen(which){
-  homeScreen.classList.add("hidden");
-  lobbyScreen.classList.add("hidden");
-  gameScreen.classList.add("hidden");
-  resultsScreen.classList.add("hidden");
-  which.classList.remove("hidden");
-}
-
-function setRoomCodeUI(roomCode){
-  const code = (roomCode || "").toString().toUpperCase();
-
-  if (roomCodePill) roomCodePill.textContent = code || "----";
-  if (roomIdText) roomIdText.textContent = code || "----";
-
-  if (roomDigits){
-    const chars = (code || "----").padEnd(4, "-").slice(0, 4).split("");
-    roomDigits.innerHTML = chars.map(ch => `<div class="digit">${ch}</div>`).join("");
-  }
-}
-
-function setSidebarName(name){
-  const safe = (name || "PLAYER").trim();
-  sidebarName.textContent = safe;
-}
-
-function setLevelUI(level){
-  levelPill.textContent = `Level ${level}/${LEVELS}`;
-}
-
-function nowMs(){ return Date.now(); }
-
-function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
-
-function pickRandom(arr, n){
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy.slice(0, n);
-}
-
-function formatPlayersJoined(list){
-  if(!list.length) return "No players yet";
-  return list.map(p => `• ${p.name}${p.isHost ? " (Host)" : ""}`).join("\n");
-}
-
-function isHost(){
-  const p = playersState.find(x => x.uid === uid);
-  return !!p?.isHost;
-}
-
-function myPlayer(){
-  return playersState.find(x => x.uid === uid) || null;
-}
-
-function getQuestionById(qid){
-  return QUESTIONS.find(q => q.id === qid) || null;
-}
-
-/* -----------------------------
-   6) Firebase Auth
--------------------------------- */
-async function initAuth(){
-  authStatus.textContent = "Signing in…";
-  await signInAnonymously(auth);
-  onAuthStateChanged(auth, (user)=>{
-    if(!user) return;
-    uid = user.uid;
-    authStatus.textContent = "Signed in (Anonymous)";
+function showScreen(screenId){
+  ["homeScreen","lobbyScreen","gameScreen","resultsScreen"].forEach(id=>{
+    const el = $(id);
+    if(!el) return;
+    el.classList.toggle("hidden", id !== screenId);
   });
 }
 
-/* -----------------------------
-   7) Room / Player Docs
--------------------------------- */
-function roomRef(roomCode){
-  return doc(db, "rooms", roomCode);
-}
-function playerRef(roomCode, playerUid){
-  return doc(db, "rooms", roomCode, "players", playerUid);
+function safeText(el, text){
+  if(!el) return;
+  el.textContent = text ?? "";
 }
 
-async function ensureRoomCodeUnique(code){
-  const snap = await getDoc(roomRef(code));
-  return !snap.exists();
+function randRoomCode(){
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no confusing chars
+  let out = "";
+  for(let i=0;i<4;i++) out += chars[Math.floor(Math.random()*chars.length)];
+  return out;
 }
 
-function genRoomCode(){
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let s = "";
-  for(let i=0;i<4;i++) s += chars[Math.floor(Math.random()*chars.length)];
-  return s;
-}
-
-/* -----------------------------
-   8) Host / Join
--------------------------------- */
-hostBtn.addEventListener("click", async ()=>{
-  const name = (nameInput.value || "").trim();
-  if(!name) return alert("Enter your name first.");
-  if(!uid) return alert("Auth not ready. Try again.");
-
-  me.name = name;
-  setSidebarName(name);
-
-  let code = genRoomCode();
-  for(let tries=0; tries<8; tries++){
-    if(await ensureRoomCodeUnique(code)) break;
-    code = genRoomCode();
+// Fisher-Yates shuffle
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
   }
+  return a;
+}
 
-  currentRoomCode = code;
-  setRoomCodeUI(code);
+/* =========================
+   ✅ 5) Questions source
+   =========================
+   Option A (recommended):
+     Create collection: /questions/{qid}
+     Each doc:
+       { question: string, options: [a,b,c,d], answerIndex: number }
+   Then set TOTAL_QUESTIONS = 100.
+*/
+const TOTAL_QUESTIONS = 100;
 
-  // Create room doc
-  await setDoc(roomRef(code), {
-    roomCode: code,
-    hostId: uid,
-    status: "waiting",  // waiting | playing | reveal | level_done | finished
-    phase: "lobby",
-    level: 1,
-    questionNo: 0,
-    currentQid: null,
-    questionStartAtMs: null,
-    revealStartAtMs: null,
-    usedQids: [],
-    createdAt: serverTimestamp()
-  });
-
-  // Create player doc
-  await setDoc(playerRef(code, uid), {
-    uid,
-    name,
-    isHost: true,
-    totalScore: 0,
-    levelScores: {}, // {"1": 0, "2": 0, ...}
-    answeredQid: null,
-    answeredIndex: null,
-    answeredAtMs: null,
-    joinedAt: serverTimestamp()
-  });
-
-  startListeners(code);
-  openLobbyUI();
-});
-
-joinBtn.addEventListener("click", async ()=>{
-  const name = (nameInput.value || "").trim();
-  if(!name) return alert("Enter your name first.");
-  if(!uid) return alert("Auth not ready. Try again.");
-
-  const code = (roomCodeInput.value || "").trim().toUpperCase();
-  if(code.length !== 4) return alert("Room code must be 4 characters.");
-
-  const rs = await getDoc(roomRef(code));
-  if(!rs.exists()) return alert("Room not found. Check code.");
-  const r = rs.data();
-
-  if(r.status !== "waiting" && r.status !== "playing" && r.status !== "reveal" && r.status !== "level_done"){
-    return alert("This room is not joinable now.");
-  }
-
-  // only allow 2 players
-  // We'll rely on transaction to prevent >2
-  await runTransaction(db, async (tx)=>{
-    const roomSnap = await tx.get(roomRef(code));
-    if(!roomSnap.exists()) throw new Error("Room not found.");
-    const room = roomSnap.data();
-
-    const pCol = collection(db, "rooms", code, "players");
-    // Firestore transaction can't query collection easily with count.
-    // We'll do a simple check using known 2-player logic: create only if room not full
-    // We'll store "playerCount" on room to enforce.
-    const count = room.playerCount ?? 0;
-    if(count >= 2) throw new Error("Room already full (2 players).");
-
-    tx.update(roomRef(code), { playerCount: count + 1 });
-    tx.set(playerRef(code, uid), {
-      uid,
-      name,
-      isHost: false,
-      totalScore: 0,
-      levelScores: {},
-      answeredQid: null,
-      answeredIndex: null,
-      answeredAtMs: null,
-      joinedAt: serverTimestamp()
-    });
-  }).catch((e)=>{
-    alert(e.message || "Join failed.");
-    throw e;
-  });
-
-  me.name = name;
-  setSidebarName(name);
-
-  currentRoomCode = code;
-  setRoomCodeUI(code);
-
-  startListeners(code);
-  openLobbyUI();
-});
-
-/* Ensure host also sets playerCount=1 when creating room (after doc exists) */
-async function fixHostPlayerCount(){
-  if(!currentRoomCode) return;
+async function getAllQuestionIds(){
+  // expects questions docs named q1..q100 OR any 100 docs
+  // If your doc IDs are q1..q100, you can skip fetching and generate IDs.
+  // We'll attempt to fetch, fallback to q1..q100.
   try{
-    const rs = await getDoc(roomRef(currentRoomCode));
-    if(!rs.exists()) return;
-    const r = rs.data();
-    if(r.playerCount == null){
-      await updateDoc(roomRef(currentRoomCode), { playerCount: 1 });
+    const snap = await getDocs(collection(db,"questions"));
+    if(snap.size >= TOTAL_QUESTIONS){
+      const ids = [];
+      snap.forEach(d=>ids.push(d.id));
+      return ids.slice(0, TOTAL_QUESTIONS);
     }
-  }catch{}
-}
-
-/* -----------------------------
-   9) UI Navigation
--------------------------------- */
-function openLobbyUI(){
-  showScreen(lobbyScreen);
-  topTitle.textContent = "Match lobby";
-  topSub.textContent = "WAITING FOR PLAYERS";
-  lobbyHint.textContent = "WAITING FOR PLAYERS";
-  timerText.textContent = "--";
-  timerFill.style.width = "0%";
-}
-
-function openGameUI(){
-  showScreen(gameScreen);
-  topTitle.textContent = `Question`;
-  topSub.textContent = "";
-}
-
-function openResultsUI(){
-  showScreen(resultsScreen);
-  topTitle.textContent = "Match finished";
-  topSub.textContent = "";
-  timerText.textContent = "--";
-  timerFill.style.width = "0%";
-}
-
-backHomeBtn.addEventListener("click", ()=> location.reload());
-
-/* -----------------------------
-   10) Listeners
--------------------------------- */
-function stopListeners(){
-  if(roomUnsub) roomUnsub(); roomUnsub = null;
-  if(playersUnsub) playersUnsub(); playersUnsub = null;
-  if(tickInterval) clearInterval(tickInterval); tickInterval = null;
-}
-
-function startListeners(code){
-  stopListeners();
-  setRoomCodeUI(code);
-
-  roomUnsub = onSnapshot(roomRef(code), (snap)=>{
-    if(!snap.exists()) return;
-    roomState = snap.data();
-    onRoomUpdate();
-  });
-
-  const pq = query(collection(db, "rooms", code, "players"), orderBy("joinedAt", "asc"));
-  playersUnsub = onSnapshot(pq, (snap)=>{
-    playersState = snap.docs.map(d => d.data());
-    onPlayersUpdate();
-  });
-
-  fixHostPlayerCount();
-}
-
-function onPlayersUpdate(){
-  // Sidebar list
-  playersList.innerHTML = "";
-  for(const p of playersState){
-    const li = document.createElement("li");
-    li.className = "playerRow";
-    li.innerHTML = `
-      <div class="miniAvatar">${(p.name||"P")[0].toUpperCase()}</div>
-      <div class="playerMeta">
-        <b>${escapeHtml(p.name)}${p.isHost ? " (Host)" : ""}</b>
-        <span>${p.totalScore || 0} points</span>
-      </div>
-      <div class="points">${p.totalScore || 0}</div>
-    `;
-    playersList.appendChild(li);
+  }catch(e){
+    console.warn("questions fetch failed, fallback to q1..q100", e);
   }
-
-  // Total score (me)
-  const mine = myPlayer();
-  totalScoreEl.textContent = mine?.totalScore ?? 0;
-
-  // Lobby joined text
-  lobbyPlayers.textContent = formatPlayersJoined(playersState);
-
-  // status badge
-  const s = roomState?.status || "waiting";
-  lobbyStatus.textContent = s;
+  // fallback
+  const ids = [];
+  for(let i=1;i<=TOTAL_QUESTIONS;i++) ids.push(`q${i}`);
+  return ids;
 }
 
-function onRoomUpdate(){
-  if(!roomState) return;
-
-  setLevelUI(roomState.level || 1);
-
-  // show correct top subtitle
-  if(roomState.status === "waiting"){
-    topTitle.textContent = "Match lobby";
-    topSub.textContent = "WAITING FOR PLAYERS";
-    lobbyHint.textContent = "WAITING FOR PLAYERS";
-    startBtn.disabled = !isHost() || playersState.length < 2;
-    rematchBtn.classList.add("hidden");
-    showScreen(lobbyScreen);
-    return;
-  }
-
-  if(roomState.status === "playing" || roomState.status === "reveal"){
-    openGameUI();
-    renderQuestionAndPhase();
-    startTicker();
-    return;
-  }
-
-  if(roomState.status === "level_done" || roomState.status === "finished"){
-    openResultsUI();
-    renderResults();
-    startBtn.disabled = true;
-    return;
-  }
+function pickRandomUnique(fromIds, count, excludeSet){
+  const ex = excludeSet ? new Set(excludeSet) : new Set();
+  const pool = fromIds.filter(id=>!ex.has(id));
+  const mixed = shuffle(pool);
+  return mixed.slice(0, count);
 }
 
-/* -----------------------------
-   11) Start Match / Rematch
--------------------------------- */
-startBtn.addEventListener("click", async ()=>{
-  if(!isHost()) return alert("Only host can start.");
-  if(playersState.length < 2) return alert("Need 2 players.");
+/* =========================
+   ✅ 6) Firestore refs
+   ========================= */
+function roomDocRef(code){ return doc(db, "rooms", code); }
+function playersColRef(code){ return collection(db, "rooms", code, "players"); }
 
-  await startLevel(1, true);
-});
+/* =========================
+   ✅ 7) UI: room code + match id boxes
+   ========================= */
+function setRoomCodeUI(code){
+  const c = (code || "----").toUpperCase();
+  // top pill
+  safeText($("roomCodePill"), c);
 
-rematchBtn.addEventListener("click", async ()=>{
-  if(!isHost()) return alert("Only host can rematch.");
-  const nextLevel = (roomState?.level || 1) + 1;
-  if(nextLevel > LEVELS) return;
-
-  await startLevel(nextLevel, false);
-});
-
-async function startLevel(level, resetScores){
-  const code = currentRoomCode;
-  if(!code) return;
-
-  // if resetScores: clear player scores
-  if(resetScores){
-    for(const p of playersState){
-      await updateDoc(playerRef(code, p.uid), {
-        totalScore: 0,
-        levelScores: {},
-        answeredQid: null,
-        answeredIndex: null,
-        answeredAtMs: null
-      });
-    }
-    await updateDoc(roomRef(code), { usedQids: [] });
-  }
-
-  // pick 20 unused questions
-  const rs = await getDoc(roomRef(code));
-  const used = (rs.data().usedQids || []);
-  const available = QUESTIONS.map(q => q.id).filter(id => !used.includes(id));
-
-  if(available.length < QUESTIONS_PER_LEVEL){
-    // not enough questions left; finish
-    await updateDoc(roomRef(code), {
-      status: "finished",
-      phase: "results"
-    });
-    return;
-  }
-
-  const picked = pickRandom(available, QUESTIONS_PER_LEVEL);
-  const firstQid = picked[0];
-
-  await updateDoc(roomRef(code), {
-    status: "playing",
-    phase: "question",
-    level,
-    questionNo: 1,
-    currentQid: firstQid,
-    questionStartAtMs: nowMs(),
-    revealStartAtMs: null,
-    currentLevelQids: picked,
-    usedQids: [...used, ...picked],
-    playerCount: rs.data().playerCount ?? playersState.length
-  });
-
-  // reset answers for players
-  for(const p of playersState){
-    await updateDoc(playerRef(code, p.uid), {
-      answeredQid: null,
-      answeredIndex: null,
-      answeredAtMs: null
-    });
-  }
-}
-
-/* -----------------------------
-   12) Answering + Host Control
--------------------------------- */
-optionsArea.addEventListener("click", async (e)=>{
-  const btn = e.target.closest(".ansBtn");
-  if(!btn) return;
-  if(!roomState || roomState.status !== "playing") return;
-
-  const qid = roomState.currentQid;
-  const choice = Number(btn.dataset.index);
-
-  // prevent multiple answers
-  const mine = myPlayer();
-  if(mine?.answeredQid === qid) return;
-
-  await updateDoc(playerRef(currentRoomCode, uid), {
-    answeredQid: qid,
-    answeredIndex: choice,
-    answeredAtMs: nowMs()
-  });
-});
-
-function hostMaybeAdvance(){
-  if(!isHost()) return;
-  if(!roomState) return;
-  if(roomState.status !== "playing") return;
-
-  const qid = roomState.currentQid;
-  if(!qid) return;
-
-  const startAt = roomState.questionStartAtMs || 0;
-  const elapsed = (nowMs() - startAt) / 1000;
-
-  const bothAnswered = playersState.length >= 2
-    && playersState.every(p => p.answeredQid === qid && p.answeredIndex != null);
-
-  if(bothAnswered || elapsed >= QUESTION_SECONDS){
-    // reveal phase
-    revealAndScore();
-  }
-}
-
-async function revealAndScore(){
-  const code = currentRoomCode;
-  const qid = roomState.currentQid;
-  const q = getQuestionById(qid);
-  if(!q) return;
-
-  // lock into reveal
-  await updateDoc(roomRef(code), {
-    status: "reveal",
-    phase: "reveal",
-    revealStartAtMs: nowMs(),
-    correctIndex: q.answerIndex
-  });
-
-  // score with transaction
-  await runTransaction(db, async (tx)=>{
-    const ps = playersState.map(p => ({...p}));
-
-    for(const p of ps){
-      const correct = (p.answeredQid === qid && p.answeredIndex === q.answerIndex);
-      const add = correct ? POINTS_PER_CORRECT : 0;
-
-      const pref = playerRef(code, p.uid);
-      const snap = await tx.get(pref);
-      if(!snap.exists()) continue;
-      const cur = snap.data();
-
-      const lvl = String(roomState.level || 1);
-      const curLevelScores = cur.levelScores || {};
-      const newLevelScore = (curLevelScores[lvl] || 0) + add;
-      const newTotal = (cur.totalScore || 0) + add;
-
-      tx.update(pref, {
-        totalScore: newTotal,
-        levelScores: { ...curLevelScores, [lvl]: newLevelScore }
-      });
-    }
-  });
-
-  // after reveal timer, host advances next
-  setTimeout(async ()=>{
-    // re-fetch roomState quickly via snapshot, but safe:
-    const rs = await getDoc(roomRef(code));
-    if(!rs.exists()) return;
-    const r = rs.data();
-
-    if(r.status !== "reveal") return;
-
-    const nextNo = (r.questionNo || 1) + 1;
-    const levelQids = r.currentLevelQids || [];
-    const level = r.level || 1;
-
-    if(nextNo > QUESTIONS_PER_LEVEL){
-      // level finished
-      if(level >= LEVELS){
-        await updateDoc(roomRef(code), {
-          status: "finished",
-          phase: "results"
-        });
-      }else{
-        await updateDoc(roomRef(code), {
-          status: "level_done",
-          phase: "results"
-        });
+  // bottom 4 boxes
+  const container = $("matchIdBoxes");
+  if(container){
+    const boxes = Array.from(container.querySelectorAll("[data-matchbox]"));
+    if(boxes.length === 4){
+      boxes.forEach((b,i)=> b.textContent = c[i] || "-");
+    }else{
+      // try children 4
+      const kids = Array.from(container.children).slice(0,4);
+      if(kids.length === 4){
+        kids.forEach((k,i)=> k.textContent = c[i] || "-");
       }
-      return;
     }
+  }
+}
 
-    const nextQid = levelQids[nextNo - 1];
+function setLeftTopUI(){
+  const my = playersState?.[myUid];
+  safeText($("leftPlayerName"), my?.name || myName || "PLAYER");
+  safeText($("leftTotalScore"), String(my?.totalScore ?? 0));
+  const lv = roomState?.level ?? 1;
+  safeText($("leftLevelPill"), `Level ${lv}/5`);
+}
 
-    // reset player answers
-    for(const p of playersState){
-      await updateDoc(playerRef(code, p.uid), {
-        answeredQid: null,
-        answeredIndex: null,
-        answeredAtMs: null
-      });
-    }
+/* =========================
+   ✅ 8) Lobby button enable logic
+   ========================= */
+function updateStartButton(){
+  const btn = $("startBtn");
+  if(!btn || !roomState) return;
 
-    await updateDoc(roomRef(code), {
-      status: "playing",
-      phase: "question",
-      questionNo: nextNo,
-      currentQid: nextQid,
-      questionStartAtMs: nowMs(),
-      revealStartAtMs: null,
-      correctIndex: null
+  const playersCount = Object.keys(playersState || {}).length;
+  const isHost = roomState.hostId === myUid;
+  const canStart = isHost && roomState.status === "waiting" && playersCount >= 2;
+
+  btn.disabled = !canStart;
+}
+
+/* =========================
+   ✅ 9) Render players list + left scoreboard
+   ========================= */
+function renderPlayers(){
+  const list = $("playersList");
+  if(list){
+    list.innerHTML = "";
+    const entries = Object.entries(playersState || {});
+    entries.sort((a,b)=> (a[1].joinedAt?.seconds||0) - (b[1].joinedAt?.seconds||0));
+    entries.forEach(([uid,p])=>{
+      const div = document.createElement("div");
+      div.className = "playerRow";
+      const tag = (uid === roomState?.hostId) ? " (Host)" : "";
+      div.innerHTML = `<strong>${escapeHtml(p.name||"Player")}${tag}</strong><div class="muted">Total: ${p.totalScore ?? 0}</div>`;
+      list.appendChild(div);
     });
-  }, REVEAL_SECONDS * 1000);
-}
-
-/* -----------------------------
-   13) Rendering
--------------------------------- */
-function renderQuestionAndPhase(){
-  const qid = roomState?.currentQid;
-  const q = getQuestionById(qid);
-
-  const level = roomState?.level || 1;
-  const qNo = roomState?.questionNo || 0;
-
-  topTitle.textContent = `Question ${qNo} / ${QUESTIONS_PER_LEVEL}`;
-  topSub.textContent = `Level ${level} of ${LEVELS}`;
-
-  if(!q){
-    questionText.textContent = "Loading question…";
-    optionsArea.innerHTML = "";
-    answerInfo.textContent = "Please wait…";
-    return;
   }
 
-  questionText.textContent = q.q;
-  phasePill.textContent = (roomState.status === "reveal") ? "outcome" : "question";
+  // left scoreboard in game
+  const ids = Object.keys(playersState || {});
+  const otherUid = ids.find(id=>id!==myUid) || null;
+  const me = playersState?.[myUid];
+  const other = otherUid ? playersState?.[otherUid] : null;
 
-  const mine = myPlayer();
-  const myPicked = (mine?.answeredQid === qid) ? mine.answeredIndex : null;
+  safeText($("leftScoreYou"), `${me?.name || "You"}: ${me?.score ?? 0}`);
+  safeText($("leftScoreOther"), other ? `${other.name}: ${other.score ?? 0}` : `Waiting...`);
 
-  // render options
-  const letters = ["A","B","C","D"];
-  optionsArea.innerHTML = "";
-  q.options.forEach((opt, i)=>{
-    const b = document.createElement("button");
-    b.className = "ansBtn";
-    b.dataset.index = String(i);
-    b.type = "button";
-    b.innerHTML = `${escapeHtml(opt)}<span class="keyTag">${letters[i]}</span>`;
-
-    // during question
-    if(roomState.status === "playing"){
-      if(myPicked === i) b.classList.add("selected");
-      // disable if already answered
-      if(myPicked != null) b.disabled = true;
-    }
-
-    // during reveal show correct/wrong styles
-    if(roomState.status === "reveal"){
-      b.disabled = true;
-      const correctIndex = roomState.correctIndex;
-      const correctBtn = (i === correctIndex);
-
-      if(correctBtn) b.classList.add("correct");
-      if(myPicked === i && !correctBtn) b.classList.add("wrong");
-      if(myPicked === i) b.classList.add("selected");
-    }
-
-    optionsArea.appendChild(b);
-  });
-
-  // info text
-  if(roomState.status === "playing"){
-    const bothAnswered = playersState.length >= 2 && playersState.every(p => p.answeredQid === qid && p.answeredIndex != null);
-    if(myPicked == null){
-      answerInfo.textContent = "Choose an answer (you have 20 seconds).";
-    }else{
-      answerInfo.textContent = bothAnswered
-        ? "Both answered — revealing now…"
-        : "Answer locked. Waiting for opponent or time up…";
-    }
-  }else if(roomState.status === "reveal"){
-    const correctIndex = roomState.correctIndex;
-    const ok = (myPicked === correctIndex);
-    answerInfo.textContent = ok
-      ? "✅ Correct! (green)"
-      : "❌ Wrong! Correct answer highlighted (green). Your wrong choice is red.";
-  }
+  setLeftTopUI();
 }
 
-function renderResults(){
-  const level = roomState?.level || 1;
-
-  // sort by totalScore desc
-  const sorted = [...playersState].sort((a,b)=> (b.totalScore||0) - (a.totalScore||0));
-  const winner = sorted[0];
-  const runner = sorted[1];
-
-  if(roomState.status === "level_done"){
-    resultTitle.textContent = `🏁 Level ${level} finished`;
-  }else{
-    resultTitle.textContent = `🏆 Match finished (All Levels)`;
-  }
-
-  // show rematch if not finished all levels
-  if(roomState.status === "level_done" && isHost()){
-    rematchBtn.classList.remove("hidden");
-    const nextLevel = level + 1;
-    rematchLabel.textContent = `Rematch to Level ${nextLevel}`;
-  }else{
-    rematchBtn.classList.add("hidden");
-  }
-
-  // build leaderboard with total + each level breakdown
-  const thLevels = Array.from({length:LEVELS}, (_,i)=>`L${i+1}`);
-  const rows = sorted.map((p, idx)=>{
-    const ls = p.levelScores || {};
-    const lvlCells = thLevels.map((_,i)=>{
-      const key = String(i+1);
-      return `<td>${ls[key] ?? 0}</td>`;
-    }).join("");
-
-    return `
-      <tr>
-        <td><span class="pill">#${idx+1}</span></td>
-        <td>${escapeHtml(p.name)}${p.isHost ? " (Host)" : ""}</td>
-        <td><b>${p.totalScore ?? 0}</b></td>
-        ${lvlCells}
-      </tr>
-    `;
-  }).join("");
-
-  leaderboardBox.innerHTML = `
-    <div style="margin-bottom:12px;font-weight:1000;color:#2c3f52">
-      Winner: <span class="pill">${escapeHtml(winner?.name || "-")}</span>
-      &nbsp; Runner-up: <span class="pill">${escapeHtml(runner?.name || "-")}</span>
-    </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Rank</th>
-          <th>Player</th>
-          <th>Total</th>
-          ${thLevels.map(h=>`<th>${h}</th>`).join("")}
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-
-    <div style="margin-top:12px;font-size:12px;font-weight:1000;color:rgba(44,63,82,.75)">
-      Points: +${POINTS_PER_CORRECT} per correct answer • ${QUESTIONS_PER_LEVEL} questions per level • ${LEVELS} levels total
-    </div>
-  `;
-}
-
-/* -----------------------------
-   14) Timer tick
--------------------------------- */
-function startTicker(){
-  if(tickInterval) return;
-  tickInterval = setInterval(()=>{
-    if(!roomState) return;
-
-    // host checks advance
-    hostMaybeAdvance();
-
-    // compute timer UI
-    if(roomState.status === "playing"){
-      const start = roomState.questionStartAtMs || 0;
-      const elapsed = (nowMs() - start) / 1000;
-      const remaining = Math.ceil(QUESTION_SECONDS - elapsed);
-      const rem = clamp(remaining, 0, QUESTION_SECONDS);
-      timerText.textContent = `${rem}s`;
-      const pct = clamp((elapsed / QUESTION_SECONDS) * 100, 0, 100);
-      timerFill.style.width = `${pct}%`;
-    }else if(roomState.status === "reveal"){
-      const start = roomState.revealStartAtMs || 0;
-      const elapsed = (nowMs() - start) / 1000;
-      const remaining = Math.ceil(REVEAL_SECONDS - elapsed);
-      const rem = clamp(remaining, 0, REVEAL_SECONDS);
-      timerText.textContent = `${rem}s`;
-      const pct = clamp((elapsed / REVEAL_SECONDS) * 100, 0, 100);
-      timerFill.style.width = `${pct}%`;
-
-      // keep UI in sync
-      renderQuestionAndPhase();
-    }else{
-      timerText.textContent = "--";
-      timerFill.style.width = "0%";
-    }
-
-    // keep question UI in sync
-    if(roomState.status === "playing"){
-      renderQuestionAndPhase();
-    }
-  }, 150);
-}
-
-/* -----------------------------
-   15) Safety HTML
--------------------------------- */
 function escapeHtml(s){
-  return String(s ?? "")
+  return String(s)
     .replaceAll("&","&amp;")
     .replaceAll("<","&lt;")
     .replaceAll(">","&gt;")
     .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+    .replaceAll("'","&#39;");
 }
 
-/* -----------------------------
-   16) INIT
--------------------------------- */
-initAuth();
+/* =========================
+   ✅ 10) Game rendering
+   ========================= */
+async function renderCurrentQuestion(){
+  if(!roomState) return;
+  const idx = roomState.currentIndex ?? 0;
+  const ids = roomState.questionIds || [];
+  const qid = ids[idx];
+  if(!qid){
+    console.warn("No question id yet", roomState);
+    return;
+  }
 
-/* -----------------------------
-   17) Question bank builder (your 100 MCQs)
-   - For now, I included a compact version using your first 10 + placeholders.
-   - Replace/add full 100 anytime.
--------------------------------- */
-function buildQuestionsFromYourBank(){
-  const list = [];
+  const snap = await getDoc(doc(db,"questions", qid));
+  if(!snap.exists()){
+    console.error("Question doc missing:", qid);
+    return;
+  }
+  const q = snap.data();
 
-  // --- Your first 10 from your bank (example) ---
-  list.push({
-    id:"q1",
-    q:"A consumer sees a TikTok video of someone eating a viral pasta dish and suddenly feels hungry and wants to try it. This is an example of:",
-    options:["Internal stimulus for need recognition","External stimulus for need recognition","Post-purchase evaluation","Cognitive dissonance"],
-    answerIndex:1
-  });
-  list.push({
-    id:"q2",
-    q:"Ramesh needs a new laptop. He checks past experience, reviews, friends, YouTube. Which stage is he in?",
-    options:["Need Recognition","Information Search","Purchase Decision","Post-Purchase Behavior"],
-    answerIndex:1
-  });
-  list.push({
-    id:"q3",
-    q:"Priya compares iPhone 15 vs Samsung S24 on camera, battery, price. This stage is:",
-    options:["Information Search","Evaluation of Alternatives","Need Recognition","Post-Purchase Evaluation"],
-    answerIndex:1
-  });
-  list.push({
-    id:"q4",
-    q:"After buying a Sony TV, Raj sees a better LG TV cheaper and feels anxious/doubts. This is:",
-    options:["Buyer's remorse / Cognitive Dissonance","Need Recognition","Selective perception","Impulse buying"],
-    answerIndex:0
-  });
-  list.push({
-    id:"q5",
-    q:"Amazon shows '12 people bought this in the last hour' and Meera buys quickly. This factor is:",
-    options:["Discount","Credit options","Social proof","Location"],
-    answerIndex:2
-  });
-  list.push({
-    id:"q6",
-    q:"Teen buys Nike because favorite player endorses it. Motive is:",
-    options:["Rational motive","Emulation motive","Patronage motive","Inherent motive"],
-    answerIndex:1
-  });
-  list.push({
-    id:"q7",
-    q:"Flipkart sale discount triggers early washing machine purchase. Motive is:",
-    options:["Emotional (Vanity)","Rational (Monetary Gain)","Patronage (Store loyalty)","Inherent (Biological need)"],
-    answerIndex:1
-  });
-  list.push({
-    id:"q8",
-    q:"Family always buys from same kirana store due to relationship/credit/delivery. Motive is:",
-    options:["Product Motive","Patronage Motive","Emotional Motive","Learned Motive"],
-    answerIndex:1
-  });
-  list.push({
-    id:"q9",
-    q:"Ahmed decides he needs a refrigerator (not AC), then chooses Samsung over LG. First decision is ___, second is ___:",
-    options:["Selective; Primary","Primary; Selective","Patronage; Product","Inherent; Learned"],
-    answerIndex:1
-  });
-  list.push({
-    id:"q10",
-    q:"Zomato shows 'Order now, hunger won't wait' with tasty images. Motive targeted:",
-    options:["Rational motive","Inherent/Biological motive","Patronage motive","Selective motive"],
-    answerIndex:1
+  safeText($("qIndexText"), `Question ${idx+1}/20`);
+  safeText($("qText"), q.question || "");
+
+  // option buttons
+  const optButtons = getOptionButtons();
+  (q.options || []).forEach((txt,i)=>{
+    if(optButtons[i]) optButtons[i].textContent = txt;
   });
 
-  // --- Fill placeholders up to 100 so 5 levels x 20 works right now ---
-  // Replace these with your real Q11–Q100 later.
-  for(let i=11;i<=100;i++){
-    list.push({
-      id:`q${i}`,
-      q:`(Replace) Question ${i}: paste your MCQ here`,
-      options:["Option A","Option B","Option C","Option D"],
-      answerIndex:0
+  // reset states
+  optButtons.forEach(btn=>{
+    btn.disabled = false;
+    btn.classList.remove("picked","correct","wrong","reveal");
+  });
+
+  localPhase = "question";
+  startLocalTimerFromRoom();
+}
+
+function getOptionButtons(){
+  // supports either data-opt=0..3 or ids opt0..opt3
+  const byData = Array.from(document.querySelectorAll("[data-opt]"));
+  if(byData.length >= 4){
+    return [0,1,2,3].map(i => byData.find(b=> String(b.dataset.opt)===String(i)));
+  }
+  return [ $("opt0"), $("opt1"), $("opt2"), $("opt3") ].filter(Boolean);
+}
+
+/* =========================
+   ✅ 11) Timing (20s question + 5s reveal)
+   ========================= */
+function clearLocalTimer(){
+  if(localTimer){
+    clearInterval(localTimer);
+    localTimer = null;
+  }
+}
+
+function startLocalTimerFromRoom(){
+  clearLocalTimer();
+
+  const startedAt = roomState.questionStartedAt;
+  const phase = roomState.phase || "question"; // "question"|"reveal"
+  localPhase = phase;
+
+  // We compute remaining based on serverTimestamp start (best-effort)
+  const QUESTION_MS = 20_000;
+  const REVEAL_MS = 5_000;
+
+  const startMs = startedAt?.toMillis ? startedAt.toMillis() : Date.now();
+  const now0 = Date.now();
+  let elapsed = now0 - startMs;
+
+  const duration = (phase === "reveal") ? REVEAL_MS : QUESTION_MS;
+
+  function tick(){
+    const now = Date.now();
+    elapsed = now - startMs;
+    let remaining = Math.max(0, duration - elapsed);
+
+    const sec = Math.ceil(remaining/1000);
+    safeText($("timerText"), String(sec));
+
+    const bar = $("timerBar");
+    if(bar){
+      const pct = Math.max(0, Math.min(100, (remaining/duration)*100));
+      bar.style.width = `${pct}%`;
+    }
+
+    if(remaining <= 0){
+      clearLocalTimer();
+    }
+  }
+
+  tick();
+  localTimer = setInterval(tick, 100);
+}
+
+/* =========================
+   ✅ 12) Answer submit
+   ========================= */
+async function submitAnswer(optionIndex){
+  if(!currentRoomCode || !roomState) return;
+  if(roomState.status !== "playing") return;
+
+  const idx = roomState.currentIndex ?? 0;
+  const phase = roomState.phase || "question";
+  if(phase !== "question") return; // no answering during reveal
+
+  const meRef = doc(db, "rooms", currentRoomCode, "players", myUid);
+
+  // write answer for this question index
+  await updateDoc(meRef, {
+    [`answers.${idx}`]: optionIndex
+  });
+
+  // disable buttons locally (keep waiting view)
+  const optButtons = getOptionButtons();
+  optButtons.forEach(b=> b.disabled = true);
+  if(optButtons[optionIndex]) optButtons[optionIndex].classList.add("picked");
+
+  // if both answered before time, host will reveal early (handled below)
+}
+
+/* =========================
+   ✅ 13) Host: advance phases
+   ========================= */
+async function hostMaybeRevealEarly(){
+  if(!roomState || roomState.hostId !== myUid) return;
+  if(roomState.phase !== "question") return;
+
+  const idx = roomState.currentIndex ?? 0;
+  const ids = Object.keys(playersState || {});
+  if(ids.length < 2) return;
+
+  const p1 = playersState[ids[0]];
+  const p2 = playersState[ids[1]];
+  const a1 = p1?.answers?.[idx];
+  const a2 = p2?.answers?.[idx];
+
+  if(typeof a1 === "number" && typeof a2 === "number"){
+    // both answered -> switch to reveal
+    await updateDoc(roomDocRef(currentRoomCode), {
+      phase: "reveal",
+      revealStartedAt: serverTimestamp()
+    });
+  }
+}
+
+async function hostScoreAndNext(){
+  if(!roomState || roomState.hostId !== myUid) return;
+  if(roomState.phase !== "reveal") return;
+
+  const idx = roomState.currentIndex ?? 0;
+  const qid = (roomState.questionIds || [])[idx];
+  if(!qid) return;
+
+  const qSnap = await getDoc(doc(db,"questions", qid));
+  if(!qSnap.exists()) return;
+  const q = qSnap.data();
+  const correct = q.answerIndex;
+
+  // score both players (simple: +10 if correct)
+  const ids = Object.keys(playersState || {});
+  for(const uid of ids){
+    const p = playersState[uid];
+    const ans = p?.answers?.[idx];
+    const isCorrect = (typeof ans === "number" && ans === correct);
+    if(isCorrect){
+      await updateDoc(doc(db,"rooms",currentRoomCode,"players",uid), {
+        score: increment(10),
+        totalScore: increment(10),
+        [`levelScores.${roomState.level || 1}`]: increment(10)
+      });
+    }
+  }
+
+  // move to next question or finish level
+  const nextIndex = idx + 1;
+  if(nextIndex < 20){
+    await updateDoc(roomDocRef(currentRoomCode), {
+      currentIndex: nextIndex,
+      phase: "question",
+      questionStartedAt: serverTimestamp()
+    });
+  }else{
+    // finish level
+    const level = roomState.level || 1;
+    if(level < 5){
+      await updateDoc(roomDocRef(currentRoomCode), {
+        status: "level_finished"
+      });
+    }else{
+      await updateDoc(roomDocRef(currentRoomCode), {
+        status: "finished"
+      });
+    }
+  }
+}
+
+/* =========================
+   ✅ 14) Show reveal UI (green/red)
+   ========================= */
+async function renderReveal(){
+  if(!roomState) return;
+  const idx = roomState.currentIndex ?? 0;
+  const qid = (roomState.questionIds || [])[idx];
+  if(!qid) return;
+
+  const qSnap = await getDoc(doc(db,"questions", qid));
+  if(!qSnap.exists()) return;
+  const q = qSnap.data();
+  const correct = q.answerIndex;
+
+  const optButtons = getOptionButtons();
+  optButtons.forEach((btn,i)=>{
+    btn.disabled = true;
+    btn.classList.add("reveal");
+    if(i === correct) btn.classList.add("correct");
+  });
+
+  // mark my choice wrong if incorrect
+  const myAns = playersState?.[myUid]?.answers?.[idx];
+  if(typeof myAns === "number" && myAns !== correct && optButtons[myAns]){
+    optButtons[myAns].classList.add("wrong");
+  }
+}
+
+/* =========================
+   ✅ 15) Level rematch (next 20 unused)
+   ========================= */
+async function hostStartNextLevel(){
+  if(!roomState || roomState.hostId !== myUid) return;
+  const level = roomState.level || 1;
+  const nextLevel = level + 1;
+  if(nextLevel > 5) return;
+
+  const allIds = await getAllQuestionIds();
+  const used = roomState.usedQuestionIds || [];
+  const picked = pickRandomUnique(allIds, 20, used);
+
+  // reset per-level scores (keep totalScore) and answers map
+  const ids = Object.keys(playersState || {});
+  for(const uid of ids){
+    await updateDoc(doc(db,"rooms",currentRoomCode,"players",uid), {
+      score: 0,
+      answers: {}
     });
   }
 
-  return list;
+  await updateDoc(roomDocRef(currentRoomCode), {
+    status: "playing",
+    level: nextLevel,
+    questionIds: picked,
+    usedQuestionIds: [...used, ...picked],
+    currentIndex: 0,
+    phase: "question",
+    questionStartedAt: serverTimestamp()
+  });
 }
+
+/* =========================
+   ✅ 16) Render results (winner + runner up + per-level totals)
+   ========================= */
+function renderResults(){
+  const box = $("leaderboardBox");
+  if(!box) return;
+
+  const entries = Object.entries(playersState || {}).map(([uid,p])=>({
+    uid, name: p.name || "Player",
+    total: p.totalScore ?? 0,
+    levelScores: p.levelScores || {}
+  }));
+
+  entries.sort((a,b)=> b.total - a.total);
+
+  const winner = entries[0];
+  const runner = entries[1];
+
+  safeText($("resultsTitle"), winner ? `Winner: ${winner.name}` : "Match finished");
+
+  box.innerHTML = `
+    <div class="lbRow">
+      <div class="rank">#1</div>
+      <div class="pname">${escapeHtml(winner?.name||"-")}</div>
+      <div class="pts">${winner?.total ?? 0} pts</div>
+    </div>
+    <div class="lbRow">
+      <div class="rank">#2</div>
+      <div class="pname">${escapeHtml(runner?.name||"-")}</div>
+      <div class="pts">${runner?.total ?? 0} pts</div>
+    </div>
+    <hr style="opacity:.2;margin:14px 0">
+    <div class="small muted">Level breakdown</div>
+    ${entries.map(e=>{
+      const l1 = e.levelScores?.[1] ?? 0;
+      const l2 = e.levelScores?.[2] ?? 0;
+      const l3 = e.levelScores?.[3] ?? 0;
+      const l4 = e.levelScores?.[4] ?? 0;
+      const l5 = e.levelScores?.[5] ?? 0;
+      return `
+        <div class="lbMini">
+          <strong>${escapeHtml(e.name)}</strong>
+          <div class="muted">Total: ${e.total}</div>
+          <div class="chips">
+            <span>L1 ${l1}</span><span>L2 ${l2}</span><span>L3 ${l3}</span><span>L4 ${l4}</span><span>L5 ${l5}</span>
+          </div>
+        </div>
+      `;
+    }).join("")}
+  `;
+
+  // Rematch button label
+  const lv = roomState?.level ?? 1;
+  const btn = $("rematchBtn");
+  if(btn){
+    if(lv < 5){
+      btn.textContent = `Rematch to Level ${lv+1}`;
+      btn.disabled = (roomState.hostId !== myUid);
+    }else{
+      btn.textContent = "All levels completed";
+      btn.disabled = true;
+    }
+  }
+}
+
+/* =========================
+   ✅ 17) Screen routing
+   ========================= */
+function renderByRoomStatus(){
+  if(!roomState) return;
+
+  if(roomState.status === "waiting"){
+    showScreen("lobbyScreen");
+  } else if(roomState.status === "playing"){
+    showScreen("gameScreen");
+  } else if(roomState.status === "level_finished"){
+    showScreen("resultsScreen"); // show results between levels too
+  } else if(roomState.status === "finished"){
+    showScreen("resultsScreen");
+  }
+
+  setRoomCodeUI(roomState.roomCode || currentRoomCode);
+  setLeftTopUI();
+}
+
+/* =========================
+   ✅ 18) Listeners
+   ========================= */
+function stopListeners(){
+  if(roomUnsub){ roomUnsub(); roomUnsub = null; }
+  if(playersUnsub){ playersUnsub(); playersUnsub = null; }
+}
+
+function startListeners(code){
+  stopListeners();
+  currentRoomCode = code;
+  const rRef = roomDocRef(code);
+  const pRef = playersColRef(code);
+
+  roomUnsub = onSnapshot(rRef, async (snap)=>{
+    if(!snap.exists()) return;
+    roomState = snap.data();
+
+    // always show room code in UI
+    setRoomCodeUI(roomState.roomCode || code);
+
+    renderByRoomStatus();
+    updateStartButton();
+
+    // phase changes render
+    if(roomState.status === "playing"){
+      if(roomState.phase === "question"){
+        await renderCurrentQuestion();
+      }else if(roomState.phase === "reveal"){
+        await renderReveal();
+
+        // host auto-next after 5s reveal
+        if(roomState.hostId === myUid){
+          setTimeout(()=>hostScoreAndNext().catch(console.error), 5200);
+        }
+      }
+    }else{
+      if(roomState.status === "level_finished" || roomState.status === "finished"){
+        renderResults();
+      }
+    }
+  });
+
+  playersUnsub = onSnapshot(pRef, (snap)=>{
+    playersState = {};
+    snap.forEach(d=> playersState[d.id] = d.data());
+    renderPlayers();
+    updateStartButton();
+
+    // host: if both answered early, reveal early
+    hostMaybeRevealEarly().catch(console.error);
+  });
+}
+
+/* =========================
+   ✅ 19) Host / Join flows
+   ========================= */
+async function ensureSignedIn(){
+  return new Promise((resolve,reject)=>{
+    const off = onAuthStateChanged(auth, async (user)=>{
+      if(user){
+        myUid = user.uid;
+        off();
+        resolve(user);
+      }else{
+        try{
+          await signInAnonymously(auth);
+        }catch(e){
+          off();
+          reject(e);
+        }
+      }
+    });
+  });
+}
+
+async function createRoom(){
+  myName = ($("playerNameInput")?.value || "Host").trim() || "Host";
+  const code = randRoomCode();
+
+  // create room doc
+  await setDoc(roomDocRef(code), {
+    roomCode: code,
+    hostId: myUid,
+    status: "waiting",
+    level: 1,
+    createdAt: serverTimestamp(),
+    usedQuestionIds: []
+  });
+
+  // create host player doc
+  await setDoc(doc(db,"rooms",code,"players",myUid), {
+    name: myName,
+    joinedAt: serverTimestamp(),
+    score: 0,
+    totalScore: 0,
+    levelScores: { 1:0,2:0,3:0,4:0,5:0 },
+    answers: {}
+  });
+
+  startListeners(code);
+  showScreen("lobbyScreen");
+}
+
+async function joinRoom(){
+  myName = ($("playerNameInput")?.value || "Player").trim() || "Player";
+  const code = ($("joinCodeInput")?.value || "").trim().toUpperCase();
+  if(code.length !== 4){
+    alert("Enter 4-letter room code");
+    return;
+  }
+
+  const roomSnap = await getDoc(roomDocRef(code));
+  if(!roomSnap.exists()){
+    alert("Room not found");
+    return;
+  }
+
+  // Check player count
+  const pSnap = await getDocs(collection(db,"rooms",code,"players"));
+  if(pSnap.size >= 2){
+    alert("Room is full (2 players max)");
+    return;
+  }
+
+  await setDoc(doc(db,"rooms",code,"players",myUid), {
+    name: myName,
+    joinedAt: serverTimestamp(),
+    score: 0,
+    totalScore: 0,
+    levelScores: { 1:0,2:0,3:0,4:0,5:0 },
+    answers: {}
+  });
+
+  startListeners(code);
+  showScreen("lobbyScreen");
+}
+
+/* =========================
+   ✅ 20) Start match (host)
+   ========================= */
+async function startMatch(){
+  if(!roomState || roomState.hostId !== myUid) return;
+  const allIds = await getAllQuestionIds();
+  const picked = pickRandomUnique(allIds, 20, roomState.usedQuestionIds || []);
+
+  // reset answers & per-level score for both
+  const ids = Object.keys(playersState || {});
+  for(const uid of ids){
+    await updateDoc(doc(db,"rooms",currentRoomCode,"players",uid), {
+      score: 0,
+      answers: {}
+    });
+  }
+
+  await updateDoc(roomDocRef(currentRoomCode), {
+    status: "playing",
+    level: 1,
+    questionIds: picked,
+    usedQuestionIds: picked,
+    currentIndex: 0,
+    phase: "question",
+    questionStartedAt: serverTimestamp()
+  });
+}
+
+/* =========================
+   ✅ 21) Leave
+   ========================= */
+async function leaveMatch(){
+  stopListeners();
+  roomState = null;
+  playersState = {};
+  currentRoomCode = null;
+  clearLocalTimer();
+  showScreen("homeScreen");
+}
+
+/* =========================
+   ✅ 22) Wire events
+   ========================= */
+function wireUI(){
+  $("hostBtn")?.addEventListener("click", async ()=>{
+    await ensureSignedIn();
+    await createRoom();
+  });
+
+  $("joinBtn")?.addEventListener("click", async ()=>{
+    await ensureSignedIn();
+    await joinRoom();
+  });
+
+  $("startBtn")?.addEventListener("click", async ()=>{
+    await startMatch();
+  });
+
+  $("leaveBtn")?.addEventListener("click", leaveMatch);
+
+  $("copyCodeBtn")?.addEventListener("click", async ()=>{
+    if(!currentRoomCode) return;
+    try{
+      await navigator.clipboard.writeText(currentRoomCode);
+      alert("Room code copied!");
+    }catch{
+      alert("Copy failed. Room: "+currentRoomCode);
+    }
+  });
+
+  // options click
+  getOptionButtons().forEach((btn,i)=>{
+    if(!btn) return;
+    btn.addEventListener("click", ()=> submitAnswer(i));
+  });
+
+  $("rematchBtn")?.addEventListener("click", async ()=>{
+    // host starts next level
+    await hostStartNextLevel();
+  });
+}
+
+/* =========================
+   ✅ 23) Init
+   ========================= */
+(async function init(){
+  wireUI();
+  showScreen("homeScreen");
+
+  // auto sign-in so we have UID (optional)
+  try{
+    await ensureSignedIn();
+  }catch(e){
+    console.error("Auth failed", e);
+  }
+})();
