@@ -39,10 +39,15 @@ function parseQuestions() {
   const blocks = RAW_MCQ_TEXT.split("---").filter(b => b.includes("**Answer:"));
   return blocks.map(block => {
     const lines = block.trim().split("\n");
-    const question = lines.find(l => l.startsWith("**")).replace(/\*\*/g, "");
+    const questionLine = lines.find(l => l.startsWith("**"));
+    const question = questionLine ? questionLine.replace(/\*\*/g, "") : "Unknown Question";
+    
     const options = lines.filter(l => l.startsWith("- ")).map(l => l.replace("- ", ""));
-    const answerChar = lines.find(l => l.startsWith("**Answer:")).split(":")[1].trim();
+    
+    const answerLine = lines.find(l => l.startsWith("**Answer:"));
+    const answerChar = answerLine ? answerLine.split(":")[1].trim() : "A";
     const answerIndex = ["A", "B", "C", "D"].indexOf(answerChar);
+    
     return { question, options, answerIndex };
   });
 }
@@ -50,15 +55,18 @@ function parseQuestions() {
 signInAnonymously(auth).then(res => {
     uid = res.user.uid;
     questions = parseQuestions();
-});
+}).catch(err => console.error("Auth Error:", err));
 
 // --- UTILS ---
 function show(screen) {
-  [home, lobby, game].forEach(s => s.classList.add("hidden"));
-  screen.classList.remove("hidden");
+  [home, lobby, game].forEach(s => {
+      if(s) s.classList.add("hidden");
+  });
+  if(screen) screen.classList.remove("hidden");
 }
 
 function renderMatchId(code) {
+  if (!code) return;
   [...code].forEach((c, i) => {
     const el = document.getElementById("m" + (i + 1));
     if (el) el.innerText = c;
@@ -66,42 +74,57 @@ function renderMatchId(code) {
 }
 
 // --- HOST MATCH ---
-document.getElementById("hostBtn").onclick = async () => {
-  const name = nameInput.value.trim();
-  if (!name) return alert("Enter name");
+const hostBtn = document.getElementById("hostBtn");
+if (hostBtn) {
+    hostBtn.onclick = async () => {
+      const name = nameInput.value.trim();
+      if (!name) return alert("Enter name");
 
-  roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-  roomRef = doc(db, "rooms", roomCode);
+      roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+      roomRef = doc(db, "rooms", roomCode);
 
-  await setDoc(roomRef, {
-    status: "waiting",
-    host: uid,
-    currentQuestion: 0
-  });
+      try {
+          await setDoc(roomRef, {
+            status: "waiting",
+            host: uid,
+            currentQuestion: 0
+          });
 
-  await setDoc(doc(roomRef, "players", uid), { name, score: 0 });
-  initLobby(name, roomCode);
-};
+          await setDoc(doc(roomRef, "players", uid), { name, score: 0 });
+          initLobby(name, roomCode);
+      } catch (e) {
+          console.error("Hosting Error:", e);
+          alert("Failed to host room. Check Firebase Rules.");
+      }
+    };
+}
 
 // --- JOIN MATCH ---
-document.getElementById("joinBtn").onclick = async () => {
-  const code = roomInput.value.trim().toUpperCase();
-  const name = nameInput.value.trim();
-  if (code.length !== 4) return alert("Enter 4-letter room code");
-  if (!name) return alert("Enter name");
+const joinBtn = document.getElementById("joinBtn");
+if (joinBtn) {
+    joinBtn.onclick = async () => {
+      const code = roomInput.value.trim().toUpperCase();
+      const name = nameInput.value.trim();
+      if (code.length !== 4) return alert("Enter 4-letter room code");
+      if (!name) return alert("Enter name");
 
-  roomRef = doc(db, "rooms", code);
-  const snap = await getDoc(roomRef);
-  if (!snap.exists()) return alert("Room not found");
+      roomRef = doc(db, "rooms", code);
+      const snap = await getDoc(roomRef);
+      if (!snap.exists()) return alert("Room not found");
 
-  roomCode = code;
-  await setDoc(doc(roomRef, "players", uid), { name, score: 0 });
-  initLobby(name, roomCode);
-};
+      roomCode = code;
+      await setDoc(doc(roomRef, "players", uid), { name, score: 0 });
+      initLobby(name, roomCode);
+    };
+}
 
 function initLobby(name, code) {
-  document.getElementById("playerName").innerText = name;
-  document.getElementById("roomLabel").innerText = "ROOM " + code;
+  const pName = document.getElementById("playerName");
+  const rLabel = document.getElementById("roomLabel");
+  
+  if(pName) pName.innerText = name;
+  if(rLabel) rLabel.innerText = "ROOM " + code;
+  
   renderMatchId(code);
   show(lobby);
   watchRoom();
@@ -111,21 +134,22 @@ function initLobby(name, code) {
 function watchRoom() {
   // Watch Players List & Scores
   onSnapshot(collection(roomRef, "players"), snap => {
-    playersList.innerHTML = "";
+    if(playersList) playersList.innerHTML = "";
     snap.forEach(d => {
       const p = d.data();
       const div = document.createElement("div");
-      div.innerHTML = `${p.name}: <strong>${p.score}</strong>`;
-      playersList.appendChild(div);
-      if (d.id === uid) totalScoreEl.innerText = p.score;
+      div.innerHTML = `<span>${p.name}</span><strong>${p.score}</strong>`;
+      if(playersList) playersList.appendChild(div);
+      if (d.id === uid && totalScoreEl) totalScoreEl.innerText = p.score;
     });
 
-    if (snap.size >= 2) startBtn.disabled = false;
+    if (snap.size >= 2 && startBtn) startBtn.disabled = false;
   });
 
-  // Watch Room State (Game Start and Question Changes)
+  // Watch Room State
   onSnapshot(roomRef, snap => {
     const data = snap.data();
+    if (!data) return;
     if (data.status === "playing") {
       show(game);
       loadQuestion(data.currentQuestion);
@@ -134,28 +158,31 @@ function watchRoom() {
 }
 
 // --- GAMEPLAY ---
-startBtn.onclick = async () => {
-  await updateDoc(roomRef, { status: "playing" });
-};
+if (startBtn) {
+    startBtn.onclick = async () => {
+      await updateDoc(roomRef, { status: "playing" });
+    };
+}
 
 function loadQuestion(index) {
   const q = questions[index];
   if (!q) {
-    questionText.innerText = "Game Over! Final scores are on the left.";
-    optionsContainer.innerHTML = "";
+    if(questionText) questionText.innerText = "Game Over! Check final scores.";
+    if(optionsContainer) optionsContainer.innerHTML = "";
     return;
   }
 
-  questionText.innerText = q.question;
-  optionsContainer.innerHTML = "";
-
-  q.options.forEach((opt, i) => {
-    const div = document.createElement("div");
-    div.className = "option";
-    div.innerText = opt;
-    div.onclick = () => handleAnswer(i, q.answerIndex, div);
-    optionsContainer.appendChild(div);
-  });
+  if(questionText) questionText.innerText = q.question;
+  if(optionsContainer) {
+      optionsContainer.innerHTML = "";
+      q.options.forEach((opt, i) => {
+        const div = document.createElement("div");
+        div.className = "option";
+        div.innerText = opt;
+        div.onclick = () => handleAnswer(i, q.answerIndex, div);
+        optionsContainer.appendChild(div);
+      });
+  }
 }
 
 async function handleAnswer(selected, correct, element) {
@@ -166,13 +193,12 @@ async function handleAnswer(selected, correct, element) {
     element.classList.add("correct");
     const playerRef = doc(roomRef, "players", uid);
     const snap = await getDoc(playerRef);
-    await updateDoc(playerRef, { score: snap.data().score + 10 });
+    await updateDoc(playerRef, { score: (snap.data().score || 0) + 10 });
   } else {
     element.classList.add("wrong");
-    allOpts[correct].classList.add("correct");
+    if(allOpts[correct]) allOpts[correct].classList.add("correct");
   }
 
-  // Only the host advances the question for everyone
   const roomSnap = await getDoc(roomRef);
   if (roomSnap.data().host === uid) {
     setTimeout(async () => {
