@@ -1,3 +1,4 @@
+// app.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import {
   getFirestore, doc, setDoc, getDoc, updateDoc,
@@ -8,13 +9,18 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import { RAW_MCQ_TEXT } from "./rawQuestions.js";
 
-// --- CONFIGURATION ---
+// --- YOUR REAL CONFIG INTEGRATED ---
 const firebaseConfig = {
-  apiKey: "YOUR_KEY",
-  authDomain: "YOUR_DOMAIN",
-  projectId: "YOUR_PROJECT_ID"
+  apiKey: "AIzaSyDg4OZWHV2AAR6_h40oQ3_16KxS5gmuFtI",
+  authDomain: "master-mcq-2ee53.firebaseapp.com",
+  projectId: "master-mcq-2ee53",
+  storageBucket: "master-mcq-2ee53.firebasestorage.app",
+  messagingSenderId: "643022714882",
+  appId: "1:643022714882:web:19aa55481475598cefcf1b",
+  measurementId: "G-SNP025BS5G"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
@@ -34,34 +40,34 @@ const totalScoreEl = document.getElementById("totalScore");
 let uid, roomCode, roomRef;
 let questions = [];
 
-// Parse the raw text into usable objects
+// Parse the questions from rawQuestions.js
 function parseQuestions() {
   const blocks = RAW_MCQ_TEXT.split("---").filter(b => b.includes("**Answer:"));
   return blocks.map(block => {
     const lines = block.trim().split("\n");
     const questionLine = lines.find(l => l.startsWith("**"));
     const question = questionLine ? questionLine.replace(/\*\*/g, "") : "Unknown Question";
-    
     const options = lines.filter(l => l.startsWith("- ")).map(l => l.replace("- ", ""));
-    
     const answerLine = lines.find(l => l.startsWith("**Answer:"));
     const answerChar = answerLine ? answerLine.split(":")[1].trim() : "A";
     const answerIndex = ["A", "B", "C", "D"].indexOf(answerChar);
-    
     return { question, options, answerIndex };
   });
 }
 
+// Log in immediately
 signInAnonymously(auth).then(res => {
     uid = res.user.uid;
     questions = parseQuestions();
-}).catch(err => console.error("Auth Error:", err));
+    console.log("Logged in as:", uid);
+}).catch(err => {
+    console.error("Auth Error:", err);
+    alert("Auth Failed: Ensure 'Anonymous Auth' is enabled in Firebase Console.");
+});
 
 // --- UTILS ---
 function show(screen) {
-  [home, lobby, game].forEach(s => {
-      if(s) s.classList.add("hidden");
-  });
+  [home, lobby, game].forEach(s => s && s.classList.add("hidden"));
   if(screen) screen.classList.remove("hidden");
 }
 
@@ -79,6 +85,7 @@ if (hostBtn) {
     hostBtn.onclick = async () => {
       const name = nameInput.value.trim();
       if (!name) return alert("Enter name");
+      if (!uid) return alert("Waiting for authentication... try again in a second.");
 
       roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
       roomRef = doc(db, "rooms", roomCode);
@@ -89,12 +96,11 @@ if (hostBtn) {
             host: uid,
             currentQuestion: 0
           });
-
           await setDoc(doc(roomRef, "players", uid), { name, score: 0 });
           initLobby(name, roomCode);
       } catch (e) {
-          console.error("Hosting Error:", e);
-          alert("Failed to host room. Check Firebase Rules.");
+          console.error("Firestore Error:", e);
+          alert("Firebase Error: " + e.code + ". Check your Firestore Rules!");
       }
     };
 }
@@ -119,70 +125,53 @@ if (joinBtn) {
 }
 
 function initLobby(name, code) {
-  const pName = document.getElementById("playerName");
-  const rLabel = document.getElementById("roomLabel");
-  
-  if(pName) pName.innerText = name;
-  if(rLabel) rLabel.innerText = "ROOM " + code;
-  
+  document.getElementById("playerName").innerText = name;
+  document.getElementById("roomLabel").innerText = "ROOM " + code;
   renderMatchId(code);
   show(lobby);
   watchRoom();
 }
 
-// --- SYNC ENGINE ---
 function watchRoom() {
-  // Watch Players List & Scores
   onSnapshot(collection(roomRef, "players"), snap => {
-    if(playersList) playersList.innerHTML = "";
+    playersList.innerHTML = "";
     snap.forEach(d => {
       const p = d.data();
-      const div = document.createElement("div");
-      div.innerHTML = `<span>${p.name}</span><strong>${p.score}</strong>`;
-      if(playersList) playersList.appendChild(div);
-      if (d.id === uid && totalScoreEl) totalScoreEl.innerText = p.score;
+      playersList.innerHTML += `<div><span>${p.name}</span><strong>${p.score}</strong></div>`;
+      if (d.id === uid) totalScoreEl.innerText = p.score;
     });
-
-    if (snap.size >= 2 && startBtn) startBtn.disabled = false;
+    if (snap.size >= 2) startBtn.disabled = false;
   });
 
-  // Watch Room State
   onSnapshot(roomRef, snap => {
     const data = snap.data();
-    if (!data) return;
-    if (data.status === "playing") {
+    if (data && data.status === "playing") {
       show(game);
       loadQuestion(data.currentQuestion);
     }
   });
 }
 
-// --- GAMEPLAY ---
-if (startBtn) {
-    startBtn.onclick = async () => {
-      await updateDoc(roomRef, { status: "playing" });
-    };
-}
+startBtn.onclick = async () => {
+  await updateDoc(roomRef, { status: "playing" });
+};
 
 function loadQuestion(index) {
   const q = questions[index];
   if (!q) {
-    if(questionText) questionText.innerText = "Game Over! Check final scores.";
-    if(optionsContainer) optionsContainer.innerHTML = "";
+    questionText.innerText = "Game Over!";
+    optionsContainer.innerHTML = "";
     return;
   }
-
-  if(questionText) questionText.innerText = q.question;
-  if(optionsContainer) {
-      optionsContainer.innerHTML = "";
-      q.options.forEach((opt, i) => {
-        const div = document.createElement("div");
-        div.className = "option";
-        div.innerText = opt;
-        div.onclick = () => handleAnswer(i, q.answerIndex, div);
-        optionsContainer.appendChild(div);
-      });
-  }
+  questionText.innerText = q.question;
+  optionsContainer.innerHTML = "";
+  q.options.forEach((opt, i) => {
+    const div = document.createElement("div");
+    div.className = "option";
+    div.innerText = opt;
+    div.onclick = () => handleAnswer(i, q.answerIndex, div);
+    optionsContainer.appendChild(div);
+  });
 }
 
 async function handleAnswer(selected, correct, element) {
@@ -196,15 +185,13 @@ async function handleAnswer(selected, correct, element) {
     await updateDoc(playerRef, { score: (snap.data().score || 0) + 10 });
   } else {
     element.classList.add("wrong");
-    if(allOpts[correct]) allOpts[correct].classList.add("correct");
+    allOpts[correct].classList.add("correct");
   }
 
   const roomSnap = await getDoc(roomRef);
   if (roomSnap.data().host === uid) {
     setTimeout(async () => {
-      await updateDoc(roomRef, { 
-        currentQuestion: roomSnap.data().currentQuestion + 1 
-      });
+      await updateDoc(roomRef, { currentQuestion: roomSnap.data().currentQuestion + 1 });
     }, 3000);
   }
 }
