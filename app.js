@@ -147,6 +147,14 @@ function restorePlayerCache() {
     myName = cache.name;
     const inp = $("nameInput");
     if (inp) inp.value = cache.name;
+    // Show welcome back badge
+    const badge = $("cacheBadge");
+    if (badge) {
+      const best = cache.soloBest || cache.bestScore;
+      badge.innerText = best ? `👋 Welcome back! Best: ${best} pts` : "👋 Welcome back!";
+      badge.classList.add("show");
+      setTimeout(() => badge.classList.remove("show"), 4000);
+    }
   }
   if (cache.avatar && AVATARS.includes(cache.avatar)) {
     myAvatar = cache.avatar;
