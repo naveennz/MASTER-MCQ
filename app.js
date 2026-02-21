@@ -16,18 +16,63 @@ const firebaseConfig = {
   messagingSenderId: "643022714882",
   appId: "1:643022714882:web:19aa55481475598cefcf1b"
 };
-const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
+const app  = initializeApp(firebaseConfig);
+const db   = getFirestore(app);
 const auth = getAuth(app);
 
-// ─── Avatars ──────────────────────────────────────────────────────────────────
-const AVATARS = ["🎮","🚀","🦊","🐯","🦁","🐸","🤖","👽","🦄","🐉",
-                 "🔥","⚡","🌊","🍀","💎","🎯","🏆","🎪","🎭","🦋"];
+// ─── Constants ────────────────────────────────────────────────────────────────
+const AVATARS  = ["🎮","🚀","🦊","🐯","🦁","🐸","🤖","👽","🦄","🐉",
+                  "🔥","⚡","🌊","🍀","💎","🎯","🏆","🎪","🎭","🦋"];
+const TIMER_MS = 20_000;
+const CACHE_KEY = "mmcq_player";
 
-// ─── Web Audio Sound Engine ───────────────────────────────────────────────────
+// ─── Player Cache (localStorage) ─────────────────────────────────────────────
+function loadCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function saveCache(data) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch {}
+}
+function updateCache(patch) {
+  const cur = loadCache() || {};
+  saveCache({ ...cur, ...patch });
+}
+
+// ─── Global State ─────────────────────────────────────────────────────────────
+let uid, roomCode, roomRef;
+let allQuestions = [];
+let gameData     = null;
+let playerCount  = 0;
+let myAvatar     = "🎮";
+let myName       = "";
+
+// Per-question local state (never synced to Firestore until reveal)
+let mySelection   = null;   // local answer choice
+let hasAnswered   = false;
+let revealLocked  = false;
+let scoreWritten  = false;  // only write score ONCE per question on reveal
+let lastTickSec   = -1;
+
+// All selections from ALL players (populated on reveal from Firestore)
+// Structure: { [uid]: { answerIndex, avatar, name } }
+let allSelections = {};
+
+// Question deduplication: track used question original-indices across rounds
+let usedQuestionIds = new Set();  // stored by index in allQuestions array
+
+// Timer
+let timerRAF       = null;
+let timerStart     = null;
+let renderedQIndex = -1;
+
+// Sound
 let audioCtx = null;
 let soundOn  = true;
 
+// ─── Sound Engine ─────────────────────────────────────────────────────────────
 function getCtx() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   return audioCtx;
@@ -47,7 +92,6 @@ function tone(freq, type, dur, vol = 0.25, delay = 0) {
     osc.stop(ctx.currentTime + delay + dur + 0.05);
   } catch(e) {}
 }
-
 const SFX = {
   click()   { tone(600,"sine",0.06,0.12); },
   correct() { tone(523,"sine",0.15,0.22,0); tone(659,"sine",0.15,0.22,0.08); tone(784,"sine",0.22,0.25,0.16); },
@@ -57,63 +101,63 @@ const SFX = {
   reveal()  { tone(440,"sine",0.08,0.1,0); tone(550,"sine",0.1,0.1,0.05); },
   start()   { tone(392,"sine",0.1,0.2,0); tone(523,"sine",0.1,0.2,0.10); tone(659,"sine",0.1,0.2,0.20); tone(784,"sine",0.2,0.25,0.30); },
   finish()  { tone(523,"sine",0.12,0.2,0); tone(659,"sine",0.12,0.2,0.12); tone(784,"sine",0.12,0.2,0.24); tone(1046,"sine",0.25,0.3,0.36); },
-  streak()  { tone(880,"sine",0.08,0.2,0); tone(1109,"sine",0.1,0.2,0.08); }
 };
-
-// ─── Global State ─────────────────────────────────────────────────────────────
-let uid, roomCode, roomRef;
-let allQuestions = [];
-let gameData     = null;
-let playerCount  = 0;
-let myAvatar     = "🎮";
-let myName       = "";
-
-// Multiplayer per-question state (local only)
-let mySelection   = null;
-let hasAnswered   = false;
-let revealLocked  = false;
-let lastTickSec   = -1;
-
-// Shared timer
-let timerRAF   = null;
-let timerStart = null;
-const TIMER_MS = 20_000;
-let renderedQIndex = -1;
-
-// Solo state
-let soloQuestions  = [];
-let soloIndex      = 0;
-let soloScore      = 0;
-let soloCorrect    = 0;
-let soloWrong      = 0;
-let soloStreak     = 0;
-let soloBestStreak = 0;
-let soloAnswered   = false;
-let soloTimerRAF   = null;
-let soloTimerStart = null;
-let soloLastTick   = -1;
 
 // ─── Parse Questions ──────────────────────────────────────────────────────────
 function parseQuestions() {
   return RAW_MCQ_TEXT.split("---").filter(b => b.includes("**Answer:"))
-    .map(block => {
+    .map((block, idx) => {
       const lines = block.trim().split("\n").map(l => l.trim()).filter(Boolean);
       const qLine = lines.find(l => l.startsWith("**") && !l.startsWith("**Answer"));
       const question = qLine ? qLine.replace(/^\*+/,"").replace(/\*+$/,"").replace(/^\d+\.\s*/,"").trim() : "";
       const options  = lines.filter(l => /^-\s*[A-D]\)/.test(l)).map(l => l.replace(/^-\s*[A-D]\)\s*/,"").trim());
       const ansLine  = lines.find(l => l.startsWith("**Answer:"));
       const ansLetter = ansLine ? ansLine.replace(/\*+/g,"").replace("Answer:","").trim().charAt(0).toUpperCase() : "A";
-      return { question, options, answerIndex: Math.max(0, ["A","B","C","D"].indexOf(ansLetter)) };
+      return { id: idx, question, options, answerIndex: Math.max(0,["A","B","C","D"].indexOf(ansLetter)) };
     }).filter(q => q.question && q.options.length === 4);
+}
+
+// ─── Pick questions avoiding already-used ones ────────────────────────────────
+function pickFreshQuestions(n) {
+  const fresh = allQuestions.filter(q => !usedQuestionIds.has(q.id));
+  // If not enough fresh questions left, reset and start over
+  if (fresh.length < n) {
+    usedQuestionIds.clear();
+    return [...allQuestions].sort(() => Math.random() - 0.5).slice(0, n);
+  }
+  const picked = fresh.sort(() => Math.random() - 0.5).slice(0, n);
+  picked.forEach(q => usedQuestionIds.add(q.id));
+  return picked;
 }
 
 // ─── Auth Boot ────────────────────────────────────────────────────────────────
 signInAnonymously(auth).then(res => {
   uid = res.user.uid;
   allQuestions = parseQuestions();
+  restorePlayerCache();   // load saved name/avatar
   buildAvatarPicker();
   startLeaderboardLive();
 });
+
+// ─── Restore cache into UI ────────────────────────────────────────────────────
+function restorePlayerCache() {
+  const cache = loadCache();
+  if (!cache) return;
+  if (cache.name) {
+    myName = cache.name;
+    const inp = $("nameInput");
+    if (inp) inp.value = cache.name;
+  }
+  if (cache.avatar && AVATARS.includes(cache.avatar)) {
+    myAvatar = cache.avatar;
+    const av = $("sidebarAvatar");
+    if (av) av.innerText = cache.avatar;
+  }
+  // Restore usedQuestionIds so rounds never repeat across sessions
+  if (cache.usedIds && Array.isArray(cache.usedIds)) {
+    usedQuestionIds = new Set(cache.usedIds);
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -124,30 +168,27 @@ function show(id) {
 function renderRoomCode(code) {
   [...(code||"")].forEach((c,i) => { const el=$("m"+(i+1)); if(el) el.innerText=c; });
 }
-function pickQuestions(n) {
-  return [...allQuestions].sort(()=>Math.random()-0.5).slice(0,n);
-}
 function makeOption(text, letter) {
   const div   = document.createElement("div");
   div.className = "opt";
-  const badge = document.createElement("span");
-  badge.className = "opt-letter"; badge.innerText = letter;
-  const txt = document.createElement("span"); txt.innerText = text;
+  const badge = document.createElement("span"); badge.className="opt-letter"; badge.innerText=letter;
+  const txt   = document.createElement("span"); txt.innerText=text;
   div.appendChild(badge); div.appendChild(txt);
   return div;
 }
 
-// ─── Sound Toggle ─────────────────────────────────────────────────────────────
-$("soundBtn").onclick = () => {
+// ─── Sound toggle ─────────────────────────────────────────────────────────────
+const soundBtn = $("soundBtn");
+if (soundBtn) soundBtn.onclick = () => {
   soundOn = !soundOn;
-  $("soundBtn").innerText = soundOn ? "🔊" : "🔇";
-  $("soundBtn").classList.toggle("muted", !soundOn);
-  SFX.click();
+  soundBtn.innerText = soundOn ? "🔊" : "🔇";
+  soundBtn.classList.toggle("muted", !soundOn);
 };
 
 // ─── Avatar Picker ────────────────────────────────────────────────────────────
 function buildAvatarPicker() {
   const grid = $("avatarGrid"); if (!grid) return;
+  grid.innerHTML = "";
   AVATARS.forEach(emoji => {
     const btn = document.createElement("button");
     btn.className = "av-btn" + (emoji===myAvatar?" av-selected":"");
@@ -155,8 +196,9 @@ function buildAvatarPicker() {
     btn.onclick = () => {
       SFX.click();
       myAvatar = emoji;
-      $("sidebarAvatar").innerText = emoji;
+      const av = $("sidebarAvatar"); if (av) av.innerText = emoji;
       document.querySelectorAll(".av-btn").forEach(b => b.classList.toggle("av-selected", b.innerText===emoji));
+      updateCache({ avatar: emoji });
     };
     grid.appendChild(btn);
   });
@@ -168,36 +210,30 @@ function startLeaderboardLive() {
   onSnapshot(q, snap => {
     const list = $("lbList"); if (!list) return;
     list.innerHTML = "";
-    if (snap.empty) { list.innerHTML = '<div class="lb-empty">No scores yet.<br>Be the first!</div>'; return; }
-    const medals = ["🥇","🥈","🥉"];
-    let rank = 0;
+    if (snap.empty) { list.innerHTML='<div class="lb-empty">No scores yet.<br>Be the first!</div>'; return; }
+    const medals=["🥇","🥈","🥉"]; let rank=0;
     snap.forEach(d => {
-      const p = d.data();
-      const row = document.createElement("div");
-      row.className = "lb-row"+(d.id===uid?" lb-me":"");
-      row.innerHTML = `
-        <span class="lb-rank">${medals[rank]||(rank+1)}</span>
-        <span class="lb-av">${p.avatar||"🎮"}</span>
-        <span class="lb-name">${p.name}</span>
-        ${p.mode==="solo"?'<span class="lb-tag">SOLO</span>':""}
-        <span class="lb-score">${p.score}</span>`;
+      const p=d.data();
+      const row=document.createElement("div");
+      row.className="lb-row"+(d.id===uid?" lb-me":"");
+      row.innerHTML=`<span class="lb-rank">${medals[rank]||(rank+1)}</span><span class="lb-av">${p.avatar||"🎮"}</span><span class="lb-name">${p.name}</span><span class="lb-score">${p.score}</span>`;
       list.appendChild(row); rank++;
     });
   });
 }
 
-async function pushToLeaderboard(name, avatar, score, mode="multi") {
+async function pushToLeaderboard(name, avatar, score) {
   if (!uid||!name) return;
-  const ref = doc(db,"leaderboard",uid);
+  const ref  = doc(db,"leaderboard",uid);
   const snap = await getDoc(ref);
   if (!snap.exists() || snap.data().score < score) {
-    await setDoc(ref, { name, avatar:avatar||"🎮", score, mode, updatedAt:serverTimestamp() });
+    await setDoc(ref, { name, avatar:avatar||"🎮", score, updatedAt:serverTimestamp() });
   }
 }
 
 // ─── Sidebar Tabs ─────────────────────────────────────────────────────────────
 $("tabPlayers").onclick     = () => switchTab("players");
-$("tabLeaderboard").onclick = () => { switchTab("leaderboard"); SFX.click(); };
+$("tabLeaderboard").onclick = () => switchTab("leaderboard");
 function switchTab(tab) {
   $("tabPlayers").classList.toggle("tab-active", tab==="players");
   $("tabLeaderboard").classList.toggle("tab-active", tab==="leaderboard");
@@ -205,210 +241,60 @@ function switchTab(tab) {
   $("panelLeaderboard").classList.toggle("hidden", tab!=="leaderboard");
 }
 
-// ═════════════════════════════════════════════════════════════
-//  SOLO MODE
-// ═════════════════════════════════════════════════════════════
+// ─── Name input: auto-save ────────────────────────────────────────────────────
+const nameInput = $("nameInput");
+if (nameInput) nameInput.addEventListener("input", () => {
+  updateCache({ name: nameInput.value.trim() });
+});
 
-$("soloBtn").onclick = () => {
-  const name = $("nameInput").value.trim();
-  if (!name) { $("nameInput").focus(); return; }
-  myName = name;
-  $("playerName").innerText    = name;
-  $("sidebarAvatar").innerText = myAvatar;
-  SFX.start();
-  startSolo();
-};
-
-function startSolo() {
-  soloQuestions = pickQuestions(20);
-  soloIndex = soloScore = soloCorrect = soloWrong = soloStreak = soloBestStreak = 0;
-  soloAnswered = false;
-  show("soloScreen");
-  renderSoloQ();
-}
-
-function renderSoloQ() {
-  const q = soloQuestions[soloIndex];
-  const letters = ["A","B","C","D"];
-  $("soloIndicator").innerText    = "SOLO · Q "+(soloIndex+1)+"/20";
-  $("soloQTag").innerText         = "Question "+(soloIndex+1)+" of 20";
-  $("soloQuestionText").innerText = q.question;
-  $("soloScoreVal").innerText     = soloScore;
-  $("soloCorrectVal").innerText   = soloCorrect;
-  $("soloStreakVal").innerText     = soloStreak+(soloStreak>=3?"🔥":"");
-  soloAnswered = false;
-
-  const container = $("soloOptions");
-  container.innerHTML = "";
-  q.options.forEach((opt, i) => {
-    const div = makeOption(opt, letters[i]);
-    div.onclick = () => handleSoloAnswer(i);
-    container.appendChild(div);
-  });
-  startSoloTimer();
-}
-
-function handleSoloAnswer(idx) {
-  if (soloAnswered) return;
-  soloAnswered = true;
-  stopSoloTimer();
-  SFX.click();
-
-  const q = soloQuestions[soloIndex];
-  const correct = idx === q.answerIndex;
-
-  if (correct) {
-    soloScore += 10; soloCorrect++;
-    soloStreak++;
-    if (soloStreak > soloBestStreak) soloBestStreak = soloStreak;
-    setTimeout(()=>SFX.correct(), 50);
-    if (soloStreak >= 3) setTimeout(()=>SFX.streak(), 380);
-  } else {
-    soloWrong++; soloStreak = 0;
-    setTimeout(()=>SFX.wrong(), 50);
-  }
-
-  // Reveal
-  const opts = $("soloOptions").children;
-  for (let i = 0; i < opts.length; i++) {
-    opts[i].dataset.locked = "true";
-    if (i === q.answerIndex) opts[i].classList.add("correct");
-    else if (i === idx)      opts[i].classList.add("wrong");
-    else                     opts[i].classList.add("dimmed");
-  }
-  $("soloScoreVal").innerText   = soloScore;
-  $("soloCorrectVal").innerText = soloCorrect;
-  $("soloStreakVal").innerText   = soloStreak+(soloStreak>=3?"🔥":"");
-
-  showSoloToast(correct?"correct":"wrong");
-  setTimeout(() => { soloIndex++; soloIndex < 20 ? renderSoloQ() : endSolo(); }, correct?1400:1800);
-}
-
-function startSoloTimer() {
-  stopSoloTimer();
-  soloTimerStart = performance.now();
-  soloLastTick   = 20;
-  const bar = $("soloTimerBar");
-  const txt = $("soloTimerText");
-
-  function tick(now) {
-    const elapsed   = now - soloTimerStart;
-    const remaining = Math.max(0, TIMER_MS - elapsed);
-    const pct       = remaining / TIMER_MS;
-    const secs      = Math.ceil(remaining / 1000);
-    bar.style.width = pct*100+"%";
-    bar.classList.toggle("low", pct<0.3);
-    if (txt) txt.innerText = secs;
-    if (secs <= 6 && secs !== soloLastTick) { soloLastTick = secs; SFX.tick(); }
-
-    if (remaining > 0) {
-      soloTimerRAF = requestAnimationFrame(tick);
-    } else {
-      soloAnswered = true; soloWrong++; soloStreak = 0;
-      SFX.timeout();
-      showSoloToast("timeout");
-      const q = soloQuestions[soloIndex];
-      const opts = $("soloOptions").children;
-      for (let i = 0; i < opts.length; i++) {
-        opts[i].dataset.locked = "true";
-        if (i === q.answerIndex) opts[i].classList.add("correct");
-        else                     opts[i].classList.add("dimmed");
-      }
-      setTimeout(() => { soloIndex++; soloIndex < 20 ? renderSoloQ() : endSolo(); }, 2000);
-    }
-  }
-  soloTimerRAF = requestAnimationFrame(tick);
-}
-
-function stopSoloTimer() {
-  if (soloTimerRAF) { cancelAnimationFrame(soloTimerRAF); soloTimerRAF = null; }
-  const bar = $("soloTimerBar"); const txt = $("soloTimerText");
-  if (bar) { bar.style.width="0%"; bar.classList.remove("low"); }
-  if (txt) txt.innerText = "0";
-}
-
-function showSoloToast(type) {
-  const toast = $("soloToast"); if (!toast) return;
-  toast.className = "";
-  if (type==="correct") {
-    const b = soloStreak>=3?" 🔥×"+soloStreak:"";
-    toast.innerText = "✓  Correct  +10"+b;
-    toast.className = "correct-toast show";
-  } else if (type==="wrong") {
-    toast.innerText = "✗  Wrong answer";
-    toast.className = "wrong-toast show";
-  } else {
-    toast.innerText = "⏱  Time's up!";
-    toast.className = "timeout-toast show";
-  }
-  setTimeout(()=>toast.classList.remove("show"), 1800);
-}
-
-async function endSolo() {
-  stopSoloTimer();
-  SFX.finish();
-  const pct = soloCorrect/20;
-  let emoji="😅", title="Keep Practising!";
-  if (pct>=0.9)      { emoji="🏆"; title="Outstanding!"; }
-  else if (pct>=0.75){ emoji="🎉"; title="Great Job!"; }
-  else if (pct>=0.5) { emoji="👍"; title="Not Bad!"; }
-
-  $("resultEmoji").innerText  = emoji;
-  $("resultTitle").innerText  = title;
-  $("resultSub").innerText    = soloCorrect+"/20 correct · "+soloScore+" points";
-  $("resultScore").innerText  = soloScore;
-  $("statCorrect").innerText  = soloCorrect;
-  $("statWrong").innerText    = soloWrong;
-  $("statStreak").innerText   = soloBestStreak+(soloBestStreak>=3?"🔥":"");
-  $("totalScore").innerText   = soloScore;
-  show("soloResultScreen");
-
-  if (myName && soloScore > 0) {
-    await pushToLeaderboard(myName, myAvatar, soloScore, "solo");
-    $("lbBadge").style.display = "";
-    setTimeout(()=>switchTab("leaderboard"), 900);
-  } else {
-    $("lbBadge").style.display = "none";
-  }
-}
-
-$("soloPlayAgainBtn").onclick = () => { SFX.start(); startSolo(); };
-
-// ═════════════════════════════════════════════════════════════
-//  MULTIPLAYER
-// ═════════════════════════════════════════════════════════════
-
+// ─── Host ─────────────────────────────────────────────────────────────────────
 $("hostBtn").onclick = async () => {
-  const name = $("nameInput").value.trim(); if (!name) return;
-  myName = name;
+  const name = $("nameInput").value.trim();
+  if (!name) return alert("Enter your name first!");
+  myName   = name;
   roomCode = Math.random().toString(36).substring(2,6).toUpperCase();
-  roomRef  = doc(db, "rooms", roomCode);
-  await setDoc(roomRef, { status:"waiting", host:uid, round:1, currentQuestion:0, questions:pickQuestions(20), answersCount:0, showAnswer:false });
-  await setDoc(doc(roomRef,"players",uid), { name, avatar:myAvatar, score:0, roundScores:[0,0,0,0,0] });
-  SFX.click();
+  roomRef  = doc(db,"rooms",roomCode);
+  usedQuestionIds.clear(); // fresh series = reset used list
+
+  const questions = pickFreshQuestions(20);
+  await setDoc(roomRef, {
+    status:"waiting", host:uid, round:1, currentQuestion:0,
+    questions, answersCount:0, showAnswer:false,
+    answers:{},           // { uid: answerIndex } — written on reveal
+    usedIds: [...usedQuestionIds]
+  });
+  await setDoc(doc(roomRef,"players",uid), {
+    name, avatar:myAvatar, score:0, roundScores:[0,0,0,0,0], gamesPlayed:0
+  });
+  updateCache({ name, avatar:myAvatar, usedIds:[...usedQuestionIds] });
   startLobby(name);
 };
 
+// ─── Join ─────────────────────────────────────────────────────────────────────
 $("joinBtn").onclick = async () => {
   const code = $("roomInput").value.trim().toUpperCase();
   const name = $("nameInput").value.trim();
-  if (!name||code.length!==4) return;
+  if (!name) return alert("Enter your name first!");
+  if (code.length!==4) return alert("Enter a valid 4-letter room code!");
   myName  = name;
   roomRef = doc(db,"rooms",code);
   const snap = await getDoc(roomRef);
   if (!snap.exists()) return alert("Room not found!");
   roomCode = code;
-  await setDoc(doc(roomRef,"players",uid), { name, avatar:myAvatar, score:0, roundScores:[0,0,0,0,0] });
-  SFX.click();
+  await setDoc(doc(roomRef,"players",uid), {
+    name, avatar:myAvatar, score:0, roundScores:[0,0,0,0,0], gamesPlayed:0
+  });
+  updateCache({ name, avatar:myAvatar });
   startLobby(name);
 };
 
+// ─── Lobby ────────────────────────────────────────────────────────────────────
 function startLobby(name) {
   $("playerName").innerText    = name;
   $("sidebarAvatar").innerText = myAvatar;
-  $("roomLabel").innerText     = "ROOM "+roomCode;
+  $("roomLabel").innerText     = "ROOM " + roomCode;
   renderRoomCode(roomCode);
-  const d = $("copyCodeDisplay"); if (d) d.innerText = roomCode||"----";
+  const display = $("copyCodeDisplay"); if (display) display.innerText = roomCode||"----";
   show("lobbyScreen");
   subscribeToRoom();
   subscribeToPlayers();
@@ -421,16 +307,16 @@ function setupCopyBtn() {
     SFX.click();
     const done = () => {
       btn.classList.add("copied"); $("copyLabel").innerText="Copied!";
-      setTimeout(()=>{ btn.classList.remove("copied"); $("copyLabel").innerText="Copy Code"; }, 2000);
+      setTimeout(()=>{ btn.classList.remove("copied"); $("copyLabel").innerText="Copy Code"; },2000);
     };
     navigator.clipboard.writeText(roomCode||"").then(done).catch(()=>{
       const el=document.createElement("textarea"); el.value=roomCode;
-      document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el);
-      done();
+      document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el); done();
     });
   };
 }
 
+// ─── Room Subscription ────────────────────────────────────────────────────────
 function subscribeToRoom() {
   onSnapshot(roomRef, snap => {
     const prev = gameData;
@@ -439,27 +325,43 @@ function subscribeToRoom() {
     const isHost = gameData.host === uid;
 
     if (gameData.status === "waiting") {
-      if (isHost) { $("startBtn").classList.remove("hidden"); $("lobbyStatus").innerText = "You are the host."; }
-      else        { $("startBtn").classList.add("hidden");    $("lobbyStatus").innerText = "Waiting for host..."; }
+      if (isHost) { $("startBtn").classList.remove("hidden"); $("lobbyStatus").innerText="You are the host."; }
+      else        { $("startBtn").classList.add("hidden");    $("lobbyStatus").innerText="Waiting for host..."; }
 
     } else if (gameData.status === "playing") {
       show("gameScreen");
       const qIdx = gameData.currentQuestion;
 
       if (qIdx !== renderedQIndex) {
-        renderedQIndex = qIdx; mySelection = null; hasAnswered = false; revealLocked = false;
+        // ── New question ────────────────────────────────────────────────────
+        renderedQIndex = qIdx;
+        mySelection    = null;
+        hasAnswered    = false;
+        revealLocked   = false;
+        scoreWritten   = false;
+        allSelections  = {};
         renderQuestion();
         if (!gameData.showAnswer) { SFX.reveal(); startTimer(); }
 
       } else if (gameData.showAnswer && prev && !prev.showAnswer) {
-        stopTimer(); revealQuestion(); showAnswerToast();
+        // ── Reveal just triggered ───────────────────────────────────────────
+        stopTimer();
+        // Collect all answers from Firestore into allSelections
+        allSelections = gameData.answers || {};
+        revealQuestion();
+        writeScoreOnReveal(); // score written HERE, not on click
+        showAnswerToast();
+
+      } else if (gameData.showAnswer && !prev?.showAnswer) {
+        // edge case guard
       }
 
-      if (isHost && !gameData.showAnswer && gameData.answersCount >= playerCount && playerCount > 0) doReveal();
+      // Host: all answered → reveal
+      if (isHost && !gameData.showAnswer && gameData.answersCount >= playerCount && playerCount>0) doReveal();
 
     } else if (gameData.status === "roundEnd") {
-      stopTimer(); show("roundWinnerScreen");
-      $("nextLevelBtn").classList.toggle("hidden", !isHost);
+      stopTimer();
+      showRoundWinner();
 
     } else if (gameData.status === "seriesEnd") {
       stopTimer(); showSeriesWinner();
@@ -467,74 +369,135 @@ function subscribeToRoom() {
   });
 }
 
+// ─── Players Subscription ─────────────────────────────────────────────────────
 function subscribeToPlayers() {
   onSnapshot(collection(roomRef,"players"), snap => {
     playerCount = snap.size;
     const players = [];
     snap.forEach(d => players.push({ id:d.id, ...d.data() }));
-    players.sort((a,b) => b.score - a.score);
+    players.sort((a,b) => b.score-a.score);
 
-    const list = $("playersList"); list.innerHTML = "";
+    const list = $("playersList"); list.innerHTML="";
     players.forEach(p => {
-      const row = document.createElement("div");
-      row.className = "player-row"+(p.id===uid?" me":"");
-      row.innerHTML = `<span class="pr-av">${p.avatar||"🎮"}</span><span class="pr-name">${p.name}</span><span class="pts">${p.score}</span>`;
+      const row=document.createElement("div");
+      row.className="player-row"+(p.id===uid?" me":"");
+      row.innerHTML=`<span class="pr-av">${p.avatar||"🎮"}</span><span class="pr-name">${p.name}</span><span class="pts">${p.score}</span>`;
       list.appendChild(row);
-      if (p.id === uid) { $("totalScore").innerText=p.score; $("sidebarAvatar").innerText=p.avatar||myAvatar; }
+      if (p.id===uid) { $("totalScore").innerText=p.score; $("sidebarAvatar").innerText=p.avatar||myAvatar; }
     });
 
-    const isHost = gameData && gameData.host === uid;
-    $("startBtn").disabled = !(isHost && snap.size >= 2);
-    if (gameData && gameData.host===uid && gameData.status==="playing" && !gameData.showAnswer && gameData.answersCount>=playerCount && playerCount>0) doReveal();
+    const isHost = gameData && gameData.host===uid;
+    $("startBtn").disabled = !(isHost && snap.size>=2);
+    if (gameData && isHost && gameData.status==="playing" && !gameData.showAnswer && gameData.answersCount>=playerCount && playerCount>0) doReveal();
   });
 }
 
+// ─── Render Question (no answers shown) ──────────────────────────────────────
 function renderQuestion() {
   const q = gameData.questions[gameData.currentQuestion];
   const letters = ["A","B","C","D"];
-  $("roundIndicator").innerText = "ROUND "+gameData.round+"  ·  Q "+(gameData.currentQuestion+1)+"/20";
-  $("qTag").innerText           = "Question "+(gameData.currentQuestion+1)+" of 20";
+  $("roundIndicator").innerText = `ROUND ${gameData.round}  ·  Q ${gameData.currentQuestion+1}/20`;
+  $("qTag").innerText           = `Question ${gameData.currentQuestion+1} of 20`;
   $("questionText").innerText   = q.question;
-  const container = $("options"); container.innerHTML = "";
+  const container=$("options"); container.innerHTML="";
   q.options.forEach((opt,i) => {
     const div = makeOption(opt, letters[i]);
     if (hasAnswered && i===mySelection) div.classList.add("marked");
-    if (hasAnswered) div.dataset.locked = "true";
+    if (hasAnswered) div.dataset.locked="true";
     if (!hasAnswered) div.onclick = () => handleAnswer(i);
     container.appendChild(div);
   });
 }
 
+// ─── Reveal Question — show correct/wrong + ALL players' choices ──────────────
 function revealQuestion() {
   const q = gameData.questions[gameData.currentQuestion];
   const letters = ["A","B","C","D"];
-  const container = $("options"); container.innerHTML = "";
+  const container = $("options"); container.innerHTML="";
+
+  // Build a map: optionIndex → list of {avatar, name} who chose it
+  const choiceMap = {}; // { 0:[...], 1:[...], 2:[...], 3:[...] }
+  for (const [pid, sel] of Object.entries(allSelections)) {
+    const idx = sel.answerIndex;
+    if (idx === undefined || idx === null || idx === -1) continue;
+    if (!choiceMap[idx]) choiceMap[idx] = [];
+    choiceMap[idx].push({ avatar: sel.avatar||"🎮", name: sel.name, isMe: pid===uid });
+  }
+
   q.options.forEach((opt,i) => {
     const div = makeOption(opt, letters[i]);
     div.dataset.locked = "true";
+    div.style.position = "relative";
+
     if (i===q.answerIndex)    div.classList.add("correct");
     else if (i===mySelection) div.classList.add("wrong");
     else                      div.classList.add("dimmed");
+
+    // Player avatar badges on this option
+    if (choiceMap[i] && choiceMap[i].length>0) {
+      const badges = document.createElement("div");
+      badges.className = "choice-badges";
+      choiceMap[i].forEach(p => {
+        const b = document.createElement("span");
+        b.className = "choice-badge"+(p.isMe?" choice-me":"");
+        b.title = p.name;
+        b.innerText = p.avatar;
+        badges.appendChild(b);
+      });
+      div.appendChild(badges);
+    }
+
     container.appendChild(div);
   });
 }
 
+// ─── Handle Answer Click — only records locally + sends to Firestore ──────────
+// Score is NOT written here — it's written on reveal
 async function handleAnswer(idx) {
-  if (hasAnswered||gameData.showAnswer) return;
-  hasAnswered = true; mySelection = idx;
-  SFX.click(); renderQuestion();
-  const q = gameData.questions[gameData.currentQuestion];
-  if (idx === q.answerIndex) {
-    const pRef = doc(roomRef,"players",uid);
-    await runTransaction(db, async t => {
-      const snap = await t.get(pRef); const p = snap.data();
-      const rounds = [...p.roundScores]; rounds[gameData.round-1] += 10;
-      t.update(pRef, { score:increment(10), roundScores:rounds });
-    });
-  }
-  await updateDoc(roomRef, { answersCount:increment(1) });
+  if (hasAnswered || gameData.showAnswer) return;
+  hasAnswered = true;
+  mySelection = idx;
+  SFX.click();
+  renderQuestion(); // show "marked" state locally
+
+  // Write this player's answer choice to room doc (visible to all on reveal)
+  // We store it nested under answers.{uid}
+  const pSnap = await getDoc(doc(roomRef,"players",uid));
+  const pData = pSnap.exists() ? pSnap.data() : {};
+  const answerPayload = {
+    [`answers.${uid}`]: {
+      answerIndex: idx,
+      avatar: myAvatar,
+      name: myName || pData.name || "Player"
+    }
+  };
+  await updateDoc(roomRef, { ...answerPayload, answersCount: increment(1) });
 }
 
+// ─── Write score on reveal (not on answer click) ──────────────────────────────
+async function writeScoreOnReveal() {
+  if (scoreWritten || !hasAnswered || mySelection === null) return;
+  scoreWritten = true;
+  const q = gameData.questions[gameData.currentQuestion];
+  if (mySelection === q.answerIndex) {
+    const pRef = doc(roomRef,"players",uid);
+    await runTransaction(db, async t => {
+      const snap  = await t.get(pRef);
+      const p     = snap.data();
+      const rounds = [...(p.roundScores||[0,0,0,0,0])];
+      rounds[gameData.round-1] = (rounds[gameData.round-1]||0)+10;
+      t.update(pRef, { score:increment(10), roundScores:rounds });
+    });
+    // Update leaderboard immediately (best-score logic inside pushToLeaderboard)
+    const pSnap = await getDoc(doc(roomRef,"players",uid));
+    if (pSnap.exists()) {
+      const p = pSnap.data();
+      pushToLeaderboard(p.name, p.avatar, p.score+10);
+    }
+  }
+}
+
+// ─── Host: Trigger Reveal ─────────────────────────────────────────────────────
 async function doReveal() {
   if (revealLocked||!gameData||gameData.showAnswer) return;
   revealLocked = true;
@@ -543,71 +506,134 @@ async function doReveal() {
     if (!gameData) return;
     const nextQ = gameData.currentQuestion+1;
     if (nextQ < 20) {
-      await updateDoc(roomRef, { currentQuestion:nextQ, showAnswer:false, answersCount:0 });
+      await updateDoc(roomRef, {
+        currentQuestion:nextQ, showAnswer:false, answersCount:0, answers:{}
+      });
     } else {
-      await updateDoc(roomRef, { status: gameData.round+1>5 ? "seriesEnd" : "roundEnd" });
+      // Save used IDs in room doc so joiner can sync
+      const newUsed = [...usedQuestionIds];
+      const isOver = gameData.round+1 > 5;
+      await updateDoc(roomRef, {
+        status: isOver ? "seriesEnd" : "roundEnd",
+        usedIds: newUsed
+      });
+      updateCache({ usedIds: newUsed });
     }
-  }, 4000);
+  }, 5000); // 5s to view answers
 }
 
+// ─── Timer ────────────────────────────────────────────────────────────────────
 function startTimer() {
   stopTimer();
-  timerStart = performance.now(); lastTickSec = 20;
-  const bar = $("timerBar"); const txt = $("timerText");
+  timerStart=performance.now(); lastTickSec=20;
+  const bar=$("timerBar"), txt=$("timerText");
   function tick(now) {
-    const elapsed = now-timerStart, remaining = Math.max(0,TIMER_MS-elapsed);
-    const pct = remaining/TIMER_MS, secs = Math.ceil(remaining/1000);
-    bar.style.width = pct*100+"%"; bar.classList.toggle("low",pct<0.3);
-    if (txt) txt.innerText = secs;
+    const elapsed=now-timerStart, remaining=Math.max(0,TIMER_MS-elapsed);
+    const pct=remaining/TIMER_MS, secs=Math.ceil(remaining/1000);
+    bar.style.width=pct*100+"%"; bar.classList.toggle("low",pct<0.3);
+    if (txt) txt.innerText=secs;
     if (secs<=6 && secs!==lastTickSec) { lastTickSec=secs; SFX.tick(); }
     if (remaining>0) { timerRAF=requestAnimationFrame(tick); }
-    else if (gameData && gameData.host===uid && !gameData.showAnswer) doReveal();
+    else if (gameData&&gameData.host===uid&&!gameData.showAnswer) doReveal();
   }
-  timerRAF = requestAnimationFrame(tick);
+  timerRAF=requestAnimationFrame(tick);
 }
-
 function stopTimer() {
   if (timerRAF) { cancelAnimationFrame(timerRAF); timerRAF=null; }
-  const bar=$("timerBar"); const txt=$("timerText");
+  const bar=$("timerBar"), txt=$("timerText");
   if (bar) { bar.style.width="0%"; bar.classList.remove("low"); }
   if (txt) txt.innerText="0";
 }
 
+// ─── Answer Toast ─────────────────────────────────────────────────────────────
 function showAnswerToast() {
-  const toast = $("answerToast"); if (!toast) return;
-  const q = gameData.questions[gameData.currentQuestion];
-  toast.className = "";
-  if (!hasAnswered) { toast.innerText="⏱  Time's up!"; toast.className="timeout-toast show"; SFX.timeout(); }
+  const toast=$("answerToast"); if(!toast) return;
+  const q=gameData.questions[gameData.currentQuestion];
+  toast.className="";
+  if (!hasAnswered)               { toast.innerText="⏱  Time's up!";    toast.className="timeout-toast show"; SFX.timeout(); }
   else if (mySelection===q.answerIndex) { toast.innerText="✓  Correct  +10"; toast.className="correct-toast show"; SFX.correct(); }
-  else { toast.innerText="✗  Wrong answer"; toast.className="wrong-toast show"; SFX.wrong(); }
-  setTimeout(()=>toast.classList.remove("show"), 3500);
+  else                            { toast.innerText="✗  Wrong answer";  toast.className="wrong-toast show";    SFX.wrong(); }
+  setTimeout(()=>toast.classList.remove("show"), 4000);
 }
 
+// ─── Round Winner Screen ──────────────────────────────────────────────────────
+function showRoundWinner() {
+  show("roundWinnerScreen");
+  const isHost = gameData && gameData.host===uid;
+
+  onSnapshot(collection(roomRef,"players"), snap => {
+    const players=[];
+    snap.forEach(d => players.push({ id:d.id, ...d.data() }));
+    players.sort((a,b)=>b.score-a.score);
+
+    const rw=$("roundWinnerContent"); if(!rw) return;
+    const round=gameData?gameData.round:1;
+    const medals=["🥇","🥈","🥉"];
+
+    let html=`<div class="rw-title">Round ${round} Complete!</div><div class="rw-podium">`;
+    players.forEach((p,i) => {
+      html+=`<div class="rw-player ${p.id===uid?"rw-me":""}">
+        <div class="rw-medal">${medals[i]||""}</div>
+        <div class="rw-av">${p.avatar||"🎮"}</div>
+        <div class="rw-name">${p.name}</div>
+        <div class="rw-score">${p.score} pts</div>
+      </div>`;
+    });
+    html+=`</div>`;
+    rw.innerHTML=html;
+  });
+
+  // Show/hide next round button
+  $("nextLevelBtn").classList.toggle("hidden", !isHost);
+  // Everyone sees a "ready" indicator — host controls proceed
+  $("rwWaiting").classList.toggle("hidden", isHost);
+}
+
+// ─── Series Winner ────────────────────────────────────────────────────────────
 function showSeriesWinner() {
   SFX.finish(); show("seriesWinnerScreen");
   onSnapshot(collection(roomRef,"players"), snap => {
-    const players = [];
+    const players=[];
     snap.forEach(d => players.push({ id:d.id, ...d.data() }));
     players.sort((a,b)=>b.score-a.score);
-    let html = `<table><tr><th></th><th>Player</th><th>R1</th><th>R2</th><th>R3</th><th>R4</th><th>R5</th><th>Total</th></tr>`;
+    let html=`<table><tr><th></th><th>Player</th><th>R1</th><th>R2</th><th>R3</th><th>R4</th><th>R5</th><th>Total</th></tr>`;
     players.forEach((p,rank)=>{
       const medal=["🥇","🥈","🥉"][rank]||"";
       html+=`<tr class="${p.id===uid?"my-row":""}">
-        <td>${p.avatar||"🎮"}</td><td style="text-align:left;font-weight:700">${medal} ${p.name}</td>
-        <td>${p.roundScores[0]}</td><td>${p.roundScores[1]}</td><td>${p.roundScores[2]}</td><td>${p.roundScores[3]}</td><td>${p.roundScores[4]}</td>
+        <td>${p.avatar||"🎮"}</td>
+        <td style="text-align:left;font-weight:700">${medal} ${p.name}</td>
+        <td>${p.roundScores?.[0]||0}</td><td>${p.roundScores?.[1]||0}</td>
+        <td>${p.roundScores?.[2]||0}</td><td>${p.roundScores?.[3]||0}</td><td>${p.roundScores?.[4]||0}</td>
         <td><strong>${p.score}</strong></td></tr>`;
-      pushToLeaderboard(p.name, p.avatar, p.score, "multi");
+      pushToLeaderboard(p.name, p.avatar, p.score);
+      // Update cache for this user's best score
+      if (p.id===uid) {
+        const cache=loadCache()||{};
+        if (!cache.bestScore || p.score > cache.bestScore) {
+          updateCache({ bestScore:p.score, name:p.name, avatar:p.avatar });
+        }
+      }
     });
-    $("seriesStats").innerHTML = html+"</table>";
+    $("seriesStats").innerHTML=html+"</table>";
   });
 }
 
+// ─── Buttons ──────────────────────────────────────────────────────────────────
 $("startBtn").onclick = () => {
   if (!gameData||gameData.host!==uid) return;
   SFX.start(); updateDoc(roomRef,{status:"playing"});
 };
+
 $("nextLevelBtn").onclick = async () => {
   if (!gameData||gameData.host!==uid) return;
   SFX.start();
-  await updateDoc(roomRef,{ round:gameData.round+1, currentQuestion:0, status:"playing", questions:pickQuestions(20), answersCount:0, showAnswer:false });
+  // Sync usedIds from room before picking next round's questions
+  if (gameData.usedIds) usedQuestionIds = new Set(gameData.usedIds);
+  const questions = pickFreshQuestions(20);
+  await updateDoc(roomRef, {
+    round:gameData.round+1, currentQuestion:0, status:"playing",
+    questions, answersCount:0, showAnswer:false, answers:{},
+    usedIds:[...usedQuestionIds]
+  });
+  updateCache({ usedIds:[...usedQuestionIds] });
 };
