@@ -637,3 +637,254 @@ $("nextLevelBtn").onclick = async () => {
   });
   updateCache({ usedIds:[...usedQuestionIds] });
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── SOLO MODE ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Solo state
+let soloQuestions  = [];
+let soloIndex      = 0;
+let soloScore      = 0;
+let soloCorrect    = 0;
+let soloStreak     = 0;
+let soloBestStreak = 0;
+let soloAnswered   = false;
+let soloTimerRAF   = null;
+let soloTimerStart = null;
+let soloLastTick   = -1;
+const SOLO_TIMER_MS = 20_000;
+
+// ─── Start Solo ───────────────────────────────────────────────────────────────
+$("soloBtn").onclick = () => {
+  const name = $("nameInput").value.trim();
+  if (!name) return alert("Enter your name first!");
+  myName = name;
+  updateCache({ name, avatar: myAvatar });
+  $("playerName").innerText    = name;
+  $("sidebarAvatar").innerText = myAvatar;
+  startSoloGame();
+};
+
+function startSoloGame() {
+  // Pick 20 fresh questions (respects dedup)
+  soloQuestions  = pickFreshQuestions(20);
+  soloIndex      = 0;
+  soloScore      = 0;
+  soloCorrect    = 0;
+  soloStreak     = 0;
+  soloBestStreak = 0;
+  soloAnswered   = false;
+
+  // Persist used IDs
+  updateCache({ usedIds: [...usedQuestionIds] });
+
+  show("soloScreen");
+  renderSoloQuestion();
+}
+
+// ─── Render Solo Question ─────────────────────────────────────────────────────
+function renderSoloQuestion() {
+  const q       = soloQuestions[soloIndex];
+  const letters = ["A","B","C","D"];
+  soloAnswered  = false;
+
+  $("soloRoundIndicator").innerText = `SOLO  ·  Q ${soloIndex + 1}/20`;
+  $("soloQTag").innerText           = `Question ${soloIndex + 1} of 20`;
+  $("soloQuestion").innerText       = q.question;
+  $("soloScoreVal").innerText       = soloScore;
+  $("soloStreakVal").innerText       = soloStreak > 1 ? `🔥 ${soloStreak}` : soloStreak;
+
+  const container = $("soloOptions");
+  container.innerHTML = "";
+
+  q.options.forEach((opt, i) => {
+    const div = makeOption(opt, letters[i]);
+    div.onclick = () => handleSoloAnswer(i);
+    container.appendChild(div);
+  });
+
+  // Hide feedback
+  const fb = $("soloFeedback");
+  fb.className = "solo-feedback hidden";
+  fb.innerText = "";
+
+  $("soloNextBtn").classList.add("hidden");
+
+  startSoloTimer();
+  SFX.reveal();
+}
+
+// ─── Solo Timer ───────────────────────────────────────────────────────────────
+function startSoloTimer() {
+  stopSoloTimer();
+  soloTimerStart = performance.now();
+  soloLastTick   = 20;
+  const bar = $("soloTimerBar");
+  const txt = $("soloTimerText");
+
+  function tick(now) {
+    const elapsed   = now - soloTimerStart;
+    const remaining = Math.max(0, SOLO_TIMER_MS - elapsed);
+    const pct       = remaining / SOLO_TIMER_MS;
+    const secs      = Math.ceil(remaining / 1000);
+
+    bar.style.width = pct * 100 + "%";
+    bar.classList.toggle("low", pct < 0.3);
+    if (txt) txt.innerText = secs;
+    if (secs <= 6 && secs !== soloLastTick) { soloLastTick = secs; SFX.tick(); }
+
+    if (remaining > 0) {
+      soloTimerRAF = requestAnimationFrame(tick);
+    } else {
+      handleSoloTimeout();
+    }
+  }
+  soloTimerRAF = requestAnimationFrame(tick);
+}
+
+function stopSoloTimer() {
+  if (soloTimerRAF) { cancelAnimationFrame(soloTimerRAF); soloTimerRAF = null; }
+  const bar = $("soloTimerBar");
+  const txt = $("soloTimerText");
+  if (bar) { bar.style.width = "0%"; bar.classList.remove("low"); }
+  if (txt) txt.innerText = "0";
+}
+
+// ─── Solo Answer ──────────────────────────────────────────────────────────────
+function handleSoloAnswer(idx) {
+  if (soloAnswered) return;
+  soloAnswered = true;
+  stopSoloTimer();
+  SFX.click();
+
+  const q       = soloQuestions[soloIndex];
+  const letters = ["A","B","C","D"];
+  const correct = idx === q.answerIndex;
+
+  // Style all options
+  const opts = $("soloOptions").querySelectorAll(".opt");
+  opts.forEach((div, i) => {
+    div.dataset.locked = "true";
+    if (i === q.answerIndex) div.classList.add("correct");
+    else if (i === idx)      div.classList.add("wrong");
+    else                     div.classList.add("dimmed");
+  });
+
+  // Score & streak
+  if (correct) {
+    const bonus  = soloStreak >= 2 ? 5 : 0;   // streak bonus
+    const points = 10 + bonus;
+    soloScore   += points;
+    soloCorrect++;
+    soloStreak++;
+    soloBestStreak = Math.max(soloBestStreak, soloStreak);
+    $("soloScoreVal").innerText = soloScore;
+    $("soloStreakVal").innerText = soloStreak > 1 ? `🔥 ${soloStreak}` : soloStreak;
+
+    const fb = $("soloFeedback");
+    fb.className = "solo-feedback solo-correct";
+    fb.innerText = bonus > 0 ? `✓ Correct! +${points} (🔥 Streak bonus +${bonus})` : `✓ Correct! +10`;
+    SFX.correct();
+  } else {
+    soloStreak = 0;
+    $("soloStreakVal").innerText = "0";
+    const fb = $("soloFeedback");
+    fb.className = "solo-feedback solo-wrong";
+    fb.innerText = `✗ Wrong! Answer: ${letters[q.answerIndex]}) ${q.options[q.answerIndex]}`;
+    SFX.wrong();
+  }
+
+  $("soloNextBtn").classList.remove("hidden");
+}
+
+function handleSoloTimeout() {
+  if (soloAnswered) return;
+  soloAnswered = true;
+  soloStreak   = 0;
+  $("soloStreakVal").innerText = "0";
+
+  const q       = soloQuestions[soloIndex];
+  const letters = ["A","B","C","D"];
+
+  const opts = $("soloOptions").querySelectorAll(".opt");
+  opts.forEach((div, i) => {
+    div.dataset.locked = "true";
+    if (i === q.answerIndex) div.classList.add("correct");
+    else                     div.classList.add("dimmed");
+  });
+
+  const fb = $("soloFeedback");
+  fb.className = "solo-feedback solo-timeout";
+  fb.innerText = `⏱ Time's up! Answer: ${letters[q.answerIndex]}) ${q.options[q.answerIndex]}`;
+  SFX.timeout();
+
+  $("soloNextBtn").classList.remove("hidden");
+}
+
+// ─── Next / Finish ────────────────────────────────────────────────────────────
+$("soloNextBtn").onclick = () => {
+  SFX.click();
+  soloIndex++;
+  if (soloIndex < soloQuestions.length) {
+    renderSoloQuestion();
+  } else {
+    showSoloResult();
+  }
+};
+
+// ─── Solo Result ──────────────────────────────────────────────────────────────
+function showSoloResult() {
+  SFX.finish();
+  stopSoloTimer();
+  show("soloResultScreen");
+
+  const total    = soloQuestions.length;
+  const wrong    = total - soloCorrect;
+  const pct      = Math.round((soloCorrect / total) * 100);
+  const grade    = pct >= 90 ? "🏆 Excellent!" : pct >= 70 ? "🎯 Great job!" : pct >= 50 ? "👍 Not bad!" : "📚 Keep practicing!";
+
+  $("srGrade").innerText     = grade;
+  $("srScore").innerText     = soloScore;
+  $("srCorrect").innerText   = soloCorrect;
+  $("srWrong").innerText     = wrong;
+  $("srStreak").innerText    = soloBestStreak;
+  $("srPercent").innerText   = pct + "%";
+
+  // Check personal best
+  const cache = loadCache() || {};
+  let isNewBest = false;
+  if (!cache.soloBest || soloScore > cache.soloBest) {
+    updateCache({ soloBest: soloScore });
+    isNewBest = true;
+  }
+  const pbEl = $("srPB");
+  if (pbEl) {
+    pbEl.innerText = isNewBest ? "🎉 New Personal Best!" : `Personal best: ${cache.soloBest || soloScore}`;
+    pbEl.className = isNewBest ? "sr-pb new-pb" : "sr-pb";
+  }
+
+  // Push to global leaderboard
+  pushToLeaderboard(myName, myAvatar, soloScore);
+}
+
+$("soloPlayAgainBtn").onclick = () => {
+  SFX.click();
+  startSoloGame();
+};
+
+$("soloHomeBtn").onclick = () => {
+  SFX.click();
+  stopSoloTimer();
+  show("homeScreen");
+};
+
+$("srPlayAgainBtn").onclick = () => {
+  SFX.click();
+  startSoloGame();
+};
+
+$("srHomeBtn").onclick = () => {
+  SFX.click();
+  show("homeScreen");
+};
