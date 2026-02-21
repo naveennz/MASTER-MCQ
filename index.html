@@ -3,486 +3,154 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Master MCQ – Series Challenge</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <title>Master MCQ - Pro Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --lime:    #c8f135;
-            --navy:    #1a1b2e;
-            --purple:  #7c5cbf;
-            --purple2: #9b7de8;
-            --white:   #f5f5f0;
-            --gray:    #e8e8e2;
-            --ink:     #1a1b2e;
-            --muted:   #8888aa;
-            --radius:  16px;
-        }
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Bricolage Grotesque', sans-serif;
-            background: var(--white);
-            color: var(--ink);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            overflow: hidden;
-        }
-        /* Floating deco */
-        .deco { position: fixed; pointer-events: none; z-index: 0; }
-        .deco-star {
-            width: 52px; height: 52px;
-            background: var(--purple2);
-            clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
-            top: 6%; right: 9%;
-            animation: floatA 6s ease-in-out infinite;
-        }
-        .deco-star2 {
-            width: 32px; height: 32px;
-            background: var(--lime);
-            clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
-            bottom: 14%; left: 4%;
-            animation: floatB 7s ease-in-out infinite;
-        }
-        .deco-ring {
-            width: 70px; height: 70px;
-            border: 3.5px solid var(--lime);
-            border-radius: 50%;
-            bottom: 22%; right: 5%;
-            animation: floatA 5s ease-in-out infinite reverse;
-        }
-        .deco-plus {
-            font-size: 2.2rem; font-weight: 900; line-height: 1;
-            color: var(--purple);
-            top: 42%; left: 2.5%;
-            animation: floatB 8s ease-in-out infinite;
-        }
-        .deco-dot {
-            width: 12px; height: 12px;
-            background: var(--lime);
-            border-radius: 50%;
-            top: 18%; left: 7%;
-            border: 2px solid var(--navy);
-            animation: floatA 4s ease-in-out infinite;
-        }
-        .deco-sq {
-            width: 28px; height: 28px;
-            background: transparent;
-            border: 3px solid var(--purple2);
-            border-radius: 6px;
-            bottom: 8%; right: 18%;
-            transform: rotate(20deg);
-            animation: floatB 6s ease-in-out infinite;
-        }
-        @keyframes floatA {
-            0%,100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-14px) rotate(15deg); }
-        }
-        @keyframes floatB {
-            0%,100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-10px) rotate(-10deg); }
-        }
-
+        :root { --primary: #1bb39a; --secondary: #2c4358; --accent: #2ecc71; --warning: #f39c12; --danger: #e74c3c; --light: #f4f7f8; --marked: #3498db; --gold: #ffd700;}
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--primary); display: flex; justify-content: center; align-items: center; min-height: 100vh; user-select: none; }
         .hidden { display: none !important; }
-
-        /* Shell */
-        .shell {
-            position: relative; z-index: 1;
-            width: 96%; max-width: 1080px; height: 680px;
-            display: flex;
-            border-radius: 24px;
-            overflow: hidden;
-            border: 2.5px solid var(--navy);
-            box-shadow: 8px 8px 0 var(--navy);
-        }
-
-        /* Sidebar */
-        .sidebar {
-            width: 258px;
-            background: var(--navy);
-            display: flex;
-            flex-direction: column;
-            padding: 26px 20px;
-            gap: 16px;
-            flex-shrink: 0;
-        }
-        .brand { font-size: 1.4rem; font-weight: 800; color: var(--white); letter-spacing: -0.5px; }
-        .brand span { color: var(--lime); }
-        .profile-card {
-            background: rgba(255,255,255,0.05);
-            border: 1.5px solid rgba(255,255,255,0.1);
-            border-radius: 14px;
-            padding: 16px;
-            text-align: center;
-        }
-        .avatar-ring {
-            width: 50px; height: 50px;
-            background: var(--lime);
-            border-radius: 50%;
-            margin: 0 auto 10px;
+        
+        .main-container { width: 95%; max-width: 1100px; height: 700px; background: var(--light); border-radius: 16px; display: flex; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        
+        /* SIDEBAR */
+        .sidebar { width: 280px; background: var(--secondary); color: #fff; padding: 30px 20px; display: flex; flex-direction: column; }
+        .player-profile { text-align: center; margin-bottom: 20px; cursor: pointer; }
+        
+        /* THE ICON (Styled like your preview) */
+        .avatar-circle { 
+            width: 80px; height: 80px; 
+            border-radius: 50%; 
+            margin: 0 auto 10px; 
+            border: 4px solid rgba(255,255,255,0.2); 
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.3rem;
-            border: 2px solid white;
+            font-size: 40px; color: rgba(255,255,255,0.8);
         }
-        #playerName { font-size: 0.68rem; font-weight: 700; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
-        .score-num { font-size: 2.5rem; font-weight: 800; color: var(--lime); line-height: 1; margin-top: 4px; }
-        .score-sub { font-size: 0.62rem; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; }
+        
+        .total-score { font-size: 28px; font-weight: 900; color: var(--accent); margin-top: 5px; }
+        #playersList div { padding: 10px; background: rgba(255,255,255,0.1); margin-bottom: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; }
+        
+        /* MINI ICON FOR LISTS */
+        .list-icon { width: 24px; height: 24px; border-radius: 50%; margin-right: 8px; border: 1px solid rgba(255,255,255,0.3); display: inline-block; vertical-align: middle; }
 
-        .s-label { font-size: 0.63rem; font-weight: 700; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
-        .players-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
-        .players-list::-webkit-scrollbar { width: 2px; }
-        .players-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
-        .player-row {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 8px 12px; border-radius: 10px;
-            background: rgba(255,255,255,0.05);
-            font-size: 0.83rem; color: var(--white);
-            border: 1px solid rgba(255,255,255,0.07);
-        }
-        .player-row.me { background: rgba(200,241,53,0.1); border-color: rgba(200,241,53,0.25); }
-        .player-row .pts { font-family: 'DM Mono', monospace; color: var(--lime); font-size: 0.76rem; }
+        .content { flex: 1; padding: 30px; display: flex; flex-direction: column; overflow-y: auto; position: relative; }
+        .timer-container { width: 100%; background: #ddd; height: 10px; border-radius: 5px; margin-bottom: 20px; overflow: hidden; }
+        #timerBar { height: 100%; background: var(--warning); width: 100%; transition: width 0.1s linear; }
 
-        /* Room code */
-        .room-digits { display: flex; gap: 5px; margin-top: 6px; }
-        .room-digit {
-            flex: 1; padding: 8px 0; text-align: center; border-radius: 8px;
-            background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.1);
-            font-family: 'DM Mono', monospace;
-            font-weight: 700; font-size: 1.05rem; color: var(--purple2);
-        }
+        /* TACTILE BUTTONS */
+        button, .option, .color-option { cursor: pointer; border: none; border-radius: 10px; font-weight: 700; -webkit-tap-highlight-color: transparent; box-shadow: 0 4px 0 rgba(0,0,0,0.15); }
+        button:active, .option:active, .color-option:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.15) !important; }
+        .btn-green { background: var(--accent); color: white; padding: 15px; font-size: 1.1rem; width: 100%; margin-top: 10px; }
+        .btn-outline { background: transparent; border: 2px solid var(--secondary); color: var(--secondary); padding: 12px; width: 100%; margin-top: 10px; }
+        .btn-solo { background: var(--warning); color: white; padding: 15px; font-size: 1.1rem; width: 100%; margin-top: 10px; }
 
-        /* Content */
-        .content {
-            flex: 1; background: var(--white);
-            display: flex; flex-direction: column;
-            overflow-y: auto; position: relative;
-        }
-        .content::-webkit-scrollbar { width: 3px; }
-        .content::-webkit-scrollbar-thumb { background: var(--gray); border-radius: 3px; }
+        /* COLOR PICKER */
+        .color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0; }
+        .color-option { height: 50px; border-radius: 10px; border: 3px solid transparent; }
+        .color-option.selected { border-color: var(--secondary); transform: scale(1.05); }
 
-        /* Buttons */
-        button {
-            font-family: 'Bricolage Grotesque', sans-serif;
-            cursor: pointer;
-            border: 2.5px solid var(--navy);
-            border-radius: var(--radius);
-            font-weight: 700;
-            transition: transform 0.08s, box-shadow 0.08s;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-        button:not(:disabled):active { transform: translate(3px,3px) !important; box-shadow: 0 0 0 transparent !important; }
-        button:disabled { opacity: 0.38; cursor: not-allowed; }
+        /* GAME STATES */
+        .option { background: #fff; padding: 20px; border: 2px solid #eee; display: flex; align-items: center; justify-content: center; text-align: center; margin-top: 10px;}
+        .marked { background-color: #ebf5fb !important; border: 3px solid var(--marked) !important; }
+        .correct { background: var(--accent) !important; color: white !important; box-shadow: 0 4px 0 #27ae60; }
+        .wrong { background: var(--danger) !important; color: white !important; box-shadow: 0 4px 0 #c0392b; }
 
-        .btn-lime { width:100%; padding:15px; background:var(--lime); color:var(--ink); font-size:1rem; box-shadow:4px 4px 0 var(--navy); margin-bottom:10px; }
-        .btn-ghost { width:100%; padding:14px; background:transparent; color:var(--ink); font-size:0.95rem; box-shadow:4px 4px 0 var(--navy); }
-        .btn-purple { padding:15px 32px; background:var(--purple); color:white; font-size:0.95rem; box-shadow:4px 4px 0 var(--navy); border-color:var(--navy); }
-        .btn-outline-sm { padding:12px 28px; background:transparent; color:var(--ink); font-size:0.9rem; box-shadow:3px 3px 0 var(--navy); }
+        /* BADGES */
+        .badge-grid { display: flex; gap: 10px; justify-content: center; margin-top: 20px; flex-wrap: wrap;}
+        .badge-item { width: 50px; height: 50px; background: #ddd; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; filter: grayscale(100%); opacity: 0.4; position: relative;}
+        .badge-item.unlocked { background: var(--gold); filter: grayscale(0%); opacity: 1; box-shadow: 0 3px 0 #c7a800; }
 
-        /* Home */
-        #homeScreen { display:flex; align-items:center; justify-content:center; height:100%; padding:40px; }
-        .home-inner { width:100%; max-width:400px; }
-        .home-badge {
-            display: inline-flex; align-items: center; gap: 8px;
-            background: var(--lime); color: var(--ink);
-            border-radius: 100px; padding: 5px 14px;
-            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.5px;
-            margin-bottom: 16px;
-            border: 1.5px solid var(--navy);
-            box-shadow: 2px 2px 0 var(--navy);
-        }
-        .home-badge .dot { width:6px; height:6px; background:var(--navy); border-radius:50%; }
-        .home-title { font-size:2.3rem; font-weight:800; line-height:1.1; letter-spacing:-1px; margin-bottom:10px; }
-        .home-title em { font-style:normal; color:var(--purple); }
-        .home-sub { font-size:0.86rem; color:var(--muted); margin-bottom:26px; line-height:1.55; }
-        .input-group { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
-        input[type="text"] {
-            width:100%; padding:13px 18px;
-            background:var(--white);
-            border:2.5px solid var(--navy);
-            border-radius:var(--radius);
-            font-family:'Bricolage Grotesque', sans-serif;
-            font-size:0.95rem; font-weight:600; color:var(--ink);
-            outline:none;
-            box-shadow:3px 3px 0 var(--navy);
-            transition:border-color 0.15s, box-shadow 0.15s;
-        }
-        input:focus { border-color:var(--purple); box-shadow:3px 3px 0 var(--purple); }
-        input::placeholder { color:var(--muted); font-weight:400; }
-
-        /* Lobby */
-        #lobbyScreen { display:flex; align-items:center; justify-content:center; height:100%; padding:40px; }
-        .lobby-card {
-            border:2.5px solid var(--navy); border-radius:20px; padding:40px;
-            text-align:center; width:100%; max-width:380px;
-            background:white; box-shadow:6px 6px 0 var(--navy);
-        }
-        #roomLabel { font-size:1.45rem; font-weight:800; letter-spacing:3px; color:var(--purple); margin-bottom:6px; }
-        #lobbyStatus { color:var(--muted); font-size:0.9rem; margin-bottom:26px; }
-
-        /* Game */
-        #gameScreen { display:flex; flex-direction:column; height:100%; padding:22px 26px; position:relative; }
-
-        #answerToast {
-            position:absolute; top:14px; right:14px;
-            padding:7px 16px; border-radius:100px;
-            border:2px solid var(--navy); font-size:0.8rem; font-weight:700;
-            opacity:0; transform:translateY(-6px);
-            transition:opacity 0.22s, transform 0.22s;
-            pointer-events:none; z-index:10;
-            box-shadow:2px 2px 0 var(--navy);
-        }
-        #answerToast.show { opacity:1; transform:translateY(0); }
-        #answerToast.correct-toast { background:var(--lime); color:var(--ink); }
-        #answerToast.wrong-toast { background:#ff4d6d; color:white; border-color:#cc2244; }
-        #answerToast.timeout-toast { background:var(--navy); color:var(--lime); }
-
-        .game-topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-        #roundIndicator { font-size:0.7rem; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
-        .timer-wrap { display:flex; align-items:center; gap:8px; }
-        #timerText { font-family:'DM Mono',monospace; font-size:0.88rem; font-weight:500; color:var(--ink); min-width:22px; text-align:right; }
-        .timer-track { width:100px; height:8px; background:var(--gray); border-radius:100px; border:1.5px solid var(--navy); overflow:hidden; }
-        #timerBar { height:100%; background:var(--lime); width:100%; border-radius:100px; transition:width 0.1s linear, background 0.4s; }
-        #timerBar.low { background:#ff6b6b; }
-
-        .q-tag {
-            display:inline-block; background:var(--purple); color:white;
-            border-radius:100px; padding:3px 12px;
-            font-size:0.68rem; font-weight:700; letter-spacing:1px; text-transform:uppercase;
-            margin-bottom:9px; border:1.5px solid var(--navy);
-        }
-        .q-box {
-            border:2.5px solid var(--navy); border-radius:var(--radius);
-            padding:18px 20px; font-size:1rem; font-weight:700; line-height:1.45;
-            background:var(--navy); color:var(--white);
-            box-shadow:4px 4px 0 var(--purple); margin-bottom:14px;
-        }
-        /* Options — compact vertical list */
-        .opts-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-            flex: 1;
-        }
-
-        .opt {
-            border: 2px solid var(--gray);
-            border-radius: 12px;
-            padding: 10px 14px;
-            background: var(--white);
-            font-family: 'Bricolage Grotesque', sans-serif;
-            font-size: 0.9rem; font-weight: 600; color: var(--ink);
-            cursor: pointer;
-            display: flex; align-items: center; gap: 12px;
-            text-align: left; line-height: 1.3;
-            transition: border-color 0.12s, background 0.12s, transform 0.08s;
-            position: relative;
-        }
-        .opt:hover:not([data-locked]) {
-            border-color: var(--purple);
-            background: rgba(124,92,191,0.04);
-        }
-        .opt:active:not([data-locked]) { transform: scale(0.99); }
-
-        .opt-letter {
-            width: 26px; height: 26px; border-radius: 8px;
-            background: var(--gray); border: 1.5px solid transparent;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.72rem; font-weight: 800; flex-shrink: 0; color: var(--muted);
-            transition: background 0.12s, color 0.12s, border-color 0.12s;
-        }
-
-        /* Selected / waiting */
-        .opt.marked {
-            border-color: var(--purple);
-            background: rgba(124,92,191,0.06);
-        }
-        .opt.marked .opt-letter {
-            background: var(--purple); color: white; border-color: var(--purple);
-        }
-
-        /* Correct */
-        .opt.correct { border-color: #16a34a; background: #f0fdf4; }
-        .opt.correct .opt-letter { background: #22c55e; color: white; border-color: #16a34a; }
-        .opt.correct::after {
-            content: '✓'; position: absolute; right: 14px;
-            font-size: 0.95rem; color: #16a34a; font-weight: 800;
-        }
-
-        /* Wrong */
-        .opt.wrong { border-color: #dc2626; background: #fef2f2; }
-        .opt.wrong .opt-letter { background: #ef4444; color: white; border-color: #dc2626; }
-        .opt.wrong::after {
-            content: '✗'; position: absolute; right: 14px;
-            font-size: 0.95rem; color: #dc2626; font-weight: 800;
-        }
-
-        /* Dimmed */
-        .opt.dimmed { opacity: 0.35; }
-
-        /* Round winner */
-        #roundWinnerScreen { display:flex; align-items:center; justify-content:center; height:100%; }
-        .winner-card {
-            border:2.5px solid var(--navy); border-radius:20px; padding:48px 40px;
-            text-align:center; max-width:390px; background:white; box-shadow:6px 6px 0 var(--navy);
-        }
-        .winner-icon { font-size:2.8rem; margin-bottom:14px; display:block; }
-        .winner-card h2 { font-size:1.75rem; font-weight:800; margin-bottom:8px; }
-        .winner-card p { color:var(--muted); font-size:0.9rem; margin-bottom:26px; }
-
-        /* Series winner */
-        #seriesWinnerScreen { display:flex; align-items:center; justify-content:center; height:100%; padding:26px; }
-        .series-card {
-            border:2.5px solid var(--navy); border-radius:20px; padding:34px;
-            text-align:center; width:100%; max-width:590px;
-            background:white; box-shadow:6px 6px 0 var(--navy);
-        }
-        .series-card h1 { font-size:1.35rem; font-weight:800; margin-bottom:20px; }
-        table { width:100%; border-collapse:collapse; }
-        th { padding:10px; background:var(--navy); color:white; font-size:0.68rem; letter-spacing:1.5px; text-transform:uppercase; text-align:center; font-weight:700; }
-        td { padding:10px; border-bottom:1.5px solid var(--gray); font-size:0.88rem; text-align:center; font-weight:600; }
-        td:first-child { text-align:left; font-weight:700; }
-        td strong { color:var(--purple); font-family:'DM Mono',monospace; }
-
-        /* Lobby copy row */
-        .copy-row {
-            display: flex; align-items: center; gap: 8px;
-            background: rgba(124,92,191,0.07);
-            border: 2px solid var(--purple);
-            border-radius: 12px;
-            padding: 10px 14px;
-            margin-bottom: 16px;
-        }
-        .copy-code {
-            flex: 1; text-align: center;
-            font-family: 'DM Mono', monospace;
-            font-size: 1.6rem; font-weight: 700;
-            color: var(--purple); letter-spacing: 6px;
-        }
-        .btn-copy {
-            display: flex; align-items: center; gap: 6px;
-            padding: 8px 14px;
-            background: var(--navy); color: var(--lime);
-            border: 2px solid var(--navy); border-radius: 10px;
-            font-size: 0.78rem; font-weight: 700; letter-spacing: 0.3px;
-            white-space: nowrap;
-            box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
-            transition: background 0.15s, color 0.15s, transform 0.08s, box-shadow 0.08s;
-        }
-        .btn-copy:active { transform: translate(2px,2px); box-shadow: 0 0 0 transparent; }
-        .btn-copy.copied { background: var(--lime); color: var(--ink); border-color: var(--lime); }
-
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; font-size: 0.9rem; margin-top: 10px;}
+        th, td { padding: 10px; border: 1px solid #eee; text-align: center; }
+        th { background: var(--secondary); color: white; }
     </style>
 </head>
 <body>
 
-<!-- Blinke-style floating decorations -->
-<div class="deco deco-star"></div>
-<div class="deco deco-star2"></div>
-<div class="deco deco-ring"></div>
-<div class="deco deco-plus">+</div>
-<div class="deco deco-dot"></div>
-<div class="deco deco-sq"></div>
-
-<div class="shell">
+<div class="main-container">
     <aside class="sidebar">
-        <div class="brand">M<span>MCQ</span></div>
-
-        <div class="profile-card">
-            <div class="avatar-ring">🎮</div>
-            <div id="playerName">PLAYER</div>
-            <div class="score-num" id="totalScore">0</div>
-            <div class="score-sub">Total Points</div>
+        <div class="player-profile" id="sidebarProfileTrigger">
+            <div class="avatar-circle" id="sidebarCircle" style="background-color: #ffb84d;">👤</div>
+            <div id="playerName" style="font-weight: 700; margin-top: 10px;">Guest</div>
+            <div class="total-score" id="totalScore">0</div>
+            <div style="font-size: 0.8rem; opacity: 0.7;">Career Points</div>
         </div>
-
-        <div class="s-label">Players</div>
-        <div class="players-list" id="playersList"></div>
-
-        <div>
-            <div class="s-label">Room Code</div>
-            <div class="room-digits">
-                <div class="room-digit" id="m1">–</div>
-                <div class="room-digit" id="m2">–</div>
-                <div class="room-digit" id="m3">–</div>
-                <div class="room-digit" id="m4">–</div>
+        <div class="players-section"><div id="playersList"></div></div>
+        <div class="match-id-container">
+            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.7;">ROOM CODE</div>
+            <div style="display:flex; gap:5px; font-weight: 900;">
+                <div id="m1" style="background:#1f3446; flex:1; padding:10px; text-align:center; border-radius:5px;">-</div>
+                <div id="m2" style="background:#1f3446; flex:1; padding:10px; text-align:center; border-radius:5px;">-</div>
+                <div id="m3" style="background:#1f3446; flex:1; padding:10px; text-align:center; border-radius:5px;">-</div>
+                <div id="m4" style="background:#1f3446; flex:1; padding:10px; text-align:center; border-radius:5px;">-</div>
             </div>
         </div>
     </aside>
 
     <main class="content">
-
         <section id="homeScreen">
-            <div class="home-inner">
-                <div class="home-badge"><span class="dot"></span> Live Multiplayer Quiz</div>
-                <h1 class="home-title">Seamless <em>Quiz</em><br>Challenge.</h1>
-                <p class="home-sub">No more boring trivia nights. Compete with friends in real-time — fixed rounds, instant scoring, unlimited fun.</p>
-                <div class="input-group">
-                    <input type="text" id="nameInput" placeholder="Your name" maxlength="12" autocomplete="off">
-                    <input type="text" id="roomInput" placeholder="Room code (to join)" maxlength="4" style="text-transform:uppercase;" autocomplete="off">
+            <div style="background: white; padding: 30px; border-radius: 15px; text-align: center; max-width: 500px; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                <h2>Master MCQ</h2>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="nameInput" placeholder="Name" maxlength="12" style="flex:1; padding: 12px; border: 2px solid #eee; border-radius: 8px;">
+                    <button id="toProfileBtn" style="width: 50px; background: var(--secondary); color: white; border-radius: 8px;">⚙️</button>
                 </div>
-                <button class="btn-lime" id="hostBtn">Host New Series →</button>
-                <button class="btn-ghost" id="joinBtn">Join a Match</button>
+                <button class="btn-solo" id="soloBtn">Solo Mode</button>
+                <input type="text" id="roomInput" placeholder="Room Code" maxlength="4" style="width: 100%; margin-top: 15px; padding: 12px; border: 2px solid #eee; border-radius: 8px; box-sizing: border-box;">
+                <button class="btn-green" id="hostBtn">Host Duo Match</button>
+                <button class="btn-outline" id="joinBtn">Join Match</button>
+
+                <h3 style="margin-top: 25px;">🌍 Global Ranking</h3>
+                <table id="globalLeaderboard">
+                    <thead><tr><th>#</th><th>Player</th><th>Pts</th></tr></thead>
+                    <tbody id="globalLeaderboardBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="profileScreen" class="hidden">
+            <div style="background: white; padding: 40px; border-radius: 15px; text-align: center; max-width: 450px; margin: auto;">
+                <h2>Customize Profile</h2>
+                <p style="color: #666;">Select your signature color</p>
+                <div class="color-grid" id="colorGrid"></div>
+                
+                <h3 style="margin-top: 20px;">Unlocked Badges</h3>
+                <div class="badge-grid" id="badgeContainer"></div>
+                
+                <button class="btn-outline" id="backHomeBtn" style="margin-top: 30px;">Save & Close</button>
             </div>
         </section>
 
         <section id="lobbyScreen" class="hidden">
-            <div class="lobby-card">
-                <div style="font-size:2.4rem;margin-bottom:12px;">🎯</div>
-                <div id="roomLabel">ROOM ----</div>
-                <p id="lobbyStatus">Waiting for players...</p>
-
-                <!-- Room code copy row -->
-                <div class="copy-row">
-                    <div class="copy-code" id="copyCodeDisplay">----</div>
-                    <button class="btn-copy" id="copyCodeBtn" title="Copy room code">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                        </svg>
-                        <span id="copyLabel">Copy Code</span>
-                    </button>
-                </div>
-
-                <button class="btn-purple" id="startBtn" disabled>Start Round 1 →</button>
+            <h2 id="roomLabel">ROOM ----</h2>
+            <div class="card" style="background: white; padding: 40px; border-radius: 15px; text-align: center;">
+                <p id="lobbyStatus">Waiting for host...</p>
+                <button class="btn-green" id="startBtn" disabled>Start Series</button>
             </div>
         </section>
 
         <section id="gameScreen" class="hidden">
-            <div id="answerToast"></div>
-            <div class="game-topbar">
-                <div id="roundIndicator">ROUND 1 · Q 1/20</div>
-                <div class="timer-wrap">
-                    <div class="timer-track"><div id="timerBar"></div></div>
-                    <div id="timerText">20</div>
-                </div>
-            </div>
-            <div class="q-tag" id="qTag">Question 1 of 20</div>
-            <div class="q-box" id="questionText"></div>
-            <div class="opts-grid" id="options"></div>
+            <div id="roundIndicator" style="font-weight:700; color:var(--secondary); margin-bottom:10px;">ROUND 1 - 1/20</div>
+            <div class="timer-container"><div id="timerBar"></div></div>
+            <div class="question-box" id="questionText"></div>
+            <div id="options"></div>
         </section>
 
         <section id="roundWinnerScreen" class="hidden">
-            <div class="winner-card">
-                <span class="winner-icon">✅</span>
-                <h2>Round Complete!</h2>
-                <p>Waiting for the host to start the next round...</p>
-                <button id="nextLevelBtn" class="btn-purple hidden">Next Round →</button>
+            <div style="background: white; padding: 40px; border-radius: 15px; text-align: center;">
+                <h2>Level Complete!</h2>
+                <button id="nextLevelBtn" class="btn-green">Next Level</button>
             </div>
         </section>
 
         <section id="seriesWinnerScreen" class="hidden">
-            <div class="series-card">
-                <h1>🏆 Series Final Results 🏆</h1>
-                <div id="seriesStats" style="overflow-x:auto;margin-bottom:22px;"></div>
-                <button onclick="location.reload()" class="btn-outline-sm">Play Again</button>
+            <div style="background: white; padding: 40px; border-radius: 15px; text-align: center;">
+                <h1>🏆 SERIES OVER 🏆</h1>
+                <div id="seriesStats" style="overflow-x: auto;"></div>
+                <button onclick="location.reload()" class="btn-outline">Back to Home</button>
             </div>
         </section>
-
     </main>
 </div>
-
 <script type="module" src="app.js"></script>
 </body>
 </html>
