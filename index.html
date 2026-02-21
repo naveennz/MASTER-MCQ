@@ -54,8 +54,18 @@
             display: flex; flex-direction: column;
             padding: 22px 18px; gap: 14px; flex-shrink: 0;
         }
-        .brand { font-size: 1.35rem; font-weight: 800; color: var(--white); letter-spacing: -0.5px; }
+        .brand { font-size: 1.35rem; font-weight: 800; color: var(--white); letter-spacing: -0.5px; display:flex; align-items:center; justify-content:space-between; }
         .brand span { color: var(--lime); }
+
+        /* Sound toggle */
+        .sound-btn {
+            width:30px; height:30px; border-radius:8px; border:1.5px solid rgba(255,255,255,0.15);
+            background:rgba(255,255,255,0.07); color:var(--white); font-size:0.9rem;
+            display:flex; align-items:center; justify-content:center; cursor:pointer;
+            transition:background 0.15s, border-color 0.15s; flex-shrink:0;
+        }
+        .sound-btn.muted { opacity:0.4; }
+        .sound-btn:hover { background:rgba(255,255,255,0.15); }
 
         .profile-card {
             background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.1);
@@ -76,12 +86,11 @@
             flex: 1; padding: 6px 4px; border-radius: 8px; border: none;
             background: transparent; color: var(--muted);
             font-family: 'Bricolage Grotesque', sans-serif;
-            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.5px;
+            font-size: 0.65rem; font-weight: 700; letter-spacing: 0.5px;
             cursor: pointer; transition: background 0.15s, color 0.15s;
         }
         .tab-btn.tab-active { background: var(--purple); color: white; }
 
-        /* Players panel */
         .s-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
         .panel { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
         .panel::-webkit-scrollbar { width: 2px; }
@@ -98,7 +107,7 @@
         .pr-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .pts     { font-family: 'DM Mono', monospace; color: var(--lime); font-size: 0.75rem; flex-shrink: 0; }
 
-        /* Leaderboard panel */
+        /* Leaderboard */
         .lb-row {
             display: flex; align-items: center; gap: 8px;
             padding: 8px 10px; border-radius: 10px;
@@ -110,6 +119,7 @@
         .lb-av    { font-size: 1rem; flex-shrink: 0; }
         .lb-name  { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .lb-score { font-family: 'DM Mono', monospace; color: var(--lime); font-size: 0.75rem; flex-shrink: 0; }
+        .lb-tag   { font-size: 0.55rem; background: rgba(124,92,191,0.4); color: var(--pur2); border-radius: 4px; padding: 1px 5px; font-weight: 700; letter-spacing: 0.5px; flex-shrink:0; }
         .lb-empty { color: var(--muted); font-size: 0.8rem; text-align: center; padding: 20px 10px; line-height: 1.6; }
 
         /* Room code */
@@ -138,40 +148,40 @@
         }
         button:not(:disabled):active { transform: translate(3px,3px) !important; box-shadow: 0 0 0 transparent !important; }
         button:disabled { opacity: 0.38; cursor: not-allowed; }
-        .btn-lime   { width:100%;padding:15px;background:var(--lime);color:var(--ink);font-size:1rem;box-shadow:4px 4px 0 var(--navy);margin-bottom:10px; }
-        .btn-ghost  { width:100%;padding:14px;background:transparent;color:var(--ink);font-size:0.95rem;box-shadow:4px 4px 0 var(--navy); }
-        .btn-purple { padding:15px 32px;background:var(--purple);color:white;font-size:0.95rem;box-shadow:4px 4px 0 var(--navy);border-color:var(--navy); }
-        .btn-outline-sm { padding:12px 28px;background:transparent;color:var(--ink);font-size:0.9rem;box-shadow:3px 3px 0 var(--navy); }
+        .btn-lime      { width:100%;padding:15px;background:var(--lime);color:var(--ink);font-size:1rem;box-shadow:4px 4px 0 var(--navy);margin-bottom:10px; }
+        .btn-ghost     { width:100%;padding:14px;background:transparent;color:var(--ink);font-size:0.95rem;box-shadow:4px 4px 0 var(--navy);margin-bottom:10px; }
+        .btn-solo      { width:100%;padding:14px;background:var(--navy);color:var(--lime);font-size:0.95rem;box-shadow:4px 4px 0 var(--purple);border-color:var(--navy); }
+        .btn-purple    { padding:15px 32px;background:var(--purple);color:white;font-size:0.95rem;box-shadow:4px 4px 0 var(--navy);border-color:var(--navy); }
+        .btn-outline-sm{ padding:12px 28px;background:transparent;color:var(--ink);font-size:0.9rem;box-shadow:3px 3px 0 var(--navy); }
 
         /* ── Home Screen ── */
-        #homeScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:30px; }
+        #homeScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:24px; }
         .home-inner { width:100%;max-width:400px; }
         .home-badge {
             display:inline-flex;align-items:center;gap:8px;
             background:var(--lime);color:var(--ink);border-radius:100px;
             padding:5px 14px;font-size:0.72rem;font-weight:700;letter-spacing:0.5px;
-            margin-bottom:14px;border:1.5px solid var(--navy);box-shadow:2px 2px 0 var(--navy);
+            margin-bottom:12px;border:1.5px solid var(--navy);box-shadow:2px 2px 0 var(--navy);
         }
         .home-badge .dot { width:6px;height:6px;background:var(--navy);border-radius:50%; }
-        .home-title { font-size:2.1rem;font-weight:800;line-height:1.1;letter-spacing:-1px;margin-bottom:6px; }
+        .home-title { font-size:2rem;font-weight:800;line-height:1.1;letter-spacing:-1px;margin-bottom:6px; }
         .home-title em { font-style:normal;color:var(--purple); }
-        .home-sub   { font-size:0.84rem;color:var(--muted);margin-bottom:16px;line-height:1.5; }
+        .home-sub   { font-size:0.82rem;color:var(--muted);margin-bottom:14px;line-height:1.5; }
 
         /* Avatar picker */
-        .av-label { font-size:0.7rem;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:8px; }
-        .av-grid  { display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-bottom:14px; }
+        .av-label { font-size:0.68rem;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:7px; }
+        .av-grid  { display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-bottom:12px; }
         .av-btn {
             aspect-ratio:1;border:2px solid transparent;border-radius:8px;
             background:var(--gray);font-size:1.1rem;line-height:1;
             cursor:pointer;display:flex;align-items:center;justify-content:center;
-            transition:border-color 0.12s,background 0.12s,transform 0.08s;
-            padding: 4px;
+            transition:border-color 0.12s,background 0.12s,transform 0.08s; padding:3px;
         }
         .av-btn:hover { border-color:var(--purple);background:rgba(124,92,191,0.08); }
         .av-btn:active { transform:scale(0.9); }
         .av-btn.av-selected { border-color:var(--purple);background:rgba(124,92,191,0.15);box-shadow:0 0 0 2px var(--purple); }
 
-        .input-group { display:flex;flex-direction:column;gap:10px;margin-bottom:14px; }
+        .input-group { display:flex;flex-direction:column;gap:10px;margin-bottom:12px; }
         input[type="text"] {
             width:100%;padding:13px 18px;background:var(--white);
             border:2.5px solid var(--navy);border-radius:var(--r);
@@ -181,6 +191,11 @@
         input:focus { border-color:var(--purple);box-shadow:3px 3px 0 var(--purple); }
         input::placeholder { color:var(--muted);font-weight:400; }
 
+        /* Mode divider */
+        .mode-divider { display:flex;align-items:center;gap:10px;margin:4px 0 12px; }
+        .mode-divider::before,.mode-divider::after { content:'';flex:1;height:1.5px;background:var(--gray); }
+        .mode-divider span { font-size:0.7rem;color:var(--muted);font-weight:700;letter-spacing:1px; }
+
         /* ── Lobby ── */
         #lobbyScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:40px; }
         .lobby-card {
@@ -188,10 +203,8 @@
             text-align:center;width:100%;max-width:380px;
             background:white;box-shadow:6px 6px 0 var(--navy);
         }
-        #roomLabel     { font-size:1.4rem;font-weight:800;letter-spacing:3px;color:var(--purple);margin-bottom:6px; }
-        #lobbyStatus   { color:var(--muted);font-size:0.9rem;margin-bottom:20px; }
-
-        /* Copy row */
+        #roomLabel   { font-size:1.4rem;font-weight:800;letter-spacing:3px;color:var(--purple);margin-bottom:6px; }
+        #lobbyStatus { color:var(--muted);font-size:0.9rem;margin-bottom:20px; }
         .copy-row {
             display:flex;align-items:center;gap:8px;
             background:rgba(124,92,191,0.07);border:2px solid var(--purple);
@@ -211,9 +224,11 @@
         .btn-copy:active { transform:translate(2px,2px);box-shadow:0 0 0 transparent; }
         .btn-copy.copied { background:var(--lime);color:var(--ink);border-color:var(--lime); }
 
-        /* ── Game ── */
-        #gameScreen { display:flex;flex-direction:column;height:100%;padding:20px 24px;position:relative; }
-        #answerToast {
+        /* ── Game (shared by multiplayer + solo) ── */
+        #gameScreen, #soloScreen {
+            display:flex;flex-direction:column;height:100%;padding:20px 24px;position:relative;
+        }
+        #answerToast, #soloToast {
             position:absolute;top:14px;right:14px;
             padding:7px 16px;border-radius:100px;
             border:2px solid var(--navy);font-size:0.8rem;font-weight:700;
@@ -221,21 +236,29 @@
             transition:opacity 0.22s,transform 0.22s;
             pointer-events:none;z-index:10;box-shadow:2px 2px 0 var(--navy);
         }
-        #answerToast.show { opacity:1;transform:translateY(0); }
-        #answerToast.correct-toast { background:var(--lime);color:var(--ink); }
-        #answerToast.wrong-toast   { background:#ff4d6d;color:white;border-color:#cc2244; }
-        #answerToast.timeout-toast { background:var(--navy);color:var(--lime); }
+        #answerToast.show, #soloToast.show { opacity:1;transform:translateY(0); }
+        .correct-toast { background:var(--lime) !important;color:var(--ink) !important; }
+        .wrong-toast   { background:#ff4d6d !important;color:white !important;border-color:#cc2244 !important; }
+        .timeout-toast { background:var(--navy) !important;color:var(--lime) !important; }
 
         .game-topbar { display:flex;align-items:center;justify-content:space-between;margin-bottom:10px; }
-        #roundIndicator { font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted); }
+        #roundIndicator, #soloIndicator {
+            font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);
+        }
         .timer-wrap { display:flex;align-items:center;gap:8px; }
-        #timerText { font-family:'DM Mono',monospace;font-size:0.88rem;font-weight:500;color:var(--ink);min-width:22px;text-align:right; }
-        .timer-track { width:100px;height:8px;background:var(--gray);border-radius:100px;border:1.5px solid var(--navy);overflow:hidden; }
-        #timerBar { height:100%;background:var(--lime);width:100%;border-radius:100px;transition:width 0.1s linear,background 0.4s; }
-        #timerBar.low { background:#ff6b6b; }
+        .timer-num  { font-family:'DM Mono',monospace;font-size:0.88rem;font-weight:500;color:var(--ink);min-width:22px;text-align:right; }
+        .timer-track{ width:100px;height:8px;background:var(--gray);border-radius:100px;border:1.5px solid var(--navy);overflow:hidden; }
+        .t-bar      { height:100%;background:var(--lime);width:100%;border-radius:100px;transition:width 0.1s linear,background 0.4s; }
+        .t-bar.low  { background:#ff6b6b; }
 
         .q-tag {
             display:inline-block;background:var(--purple);color:white;
+            border-radius:100px;padding:3px 12px;
+            font-size:0.68rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+            margin-bottom:9px;border:1.5px solid var(--navy);
+        }
+        .solo-tag {
+            display:inline-block;background:var(--navy);color:var(--lime);
             border-radius:100px;padding:3px 12px;
             font-size:0.68rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;
             margin-bottom:9px;border:1.5px solid var(--navy);
@@ -276,6 +299,50 @@
         .opt.wrong::after { content:'✗';position:absolute;right:14px;font-size:0.95rem;color:#dc2626;font-weight:800; }
         .opt.dimmed { opacity:0.35; }
 
+        /* ── Solo score strip ── */
+        .solo-strip {
+            display:flex;gap:10px;margin-bottom:12px;
+        }
+        .solo-stat {
+            flex:1;background:var(--navy);border-radius:10px;padding:8px 12px;
+            text-align:center;border:1.5px solid rgba(255,255,255,0.08);
+        }
+        .solo-stat .sv { font-size:1.2rem;font-weight:800;color:var(--lime);font-family:'DM Mono',monospace; }
+        .solo-stat .sl { font-size:0.58rem;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-top:1px; }
+
+        /* ── Solo result screen ── */
+        #soloResultScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:30px; }
+        .result-card {
+            border:2.5px solid var(--navy);border-radius:20px;padding:36px 40px;
+            text-align:center;width:100%;max-width:440px;
+            background:white;box-shadow:6px 6px 0 var(--navy);
+        }
+        .result-emoji { font-size:3rem;margin-bottom:10px;display:block; }
+        .result-title { font-size:1.6rem;font-weight:800;margin-bottom:6px; }
+        .result-sub   { color:var(--muted);font-size:0.88rem;margin-bottom:20px; }
+        .result-score-big {
+            font-size:3.5rem;font-weight:800;color:var(--purple);
+            font-family:'DM Mono',monospace;line-height:1;margin-bottom:4px;
+        }
+        .result-score-label { font-size:0.7rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:20px; }
+        .result-stats {
+            display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:24px;
+        }
+        .rs { background:var(--gray);border-radius:10px;padding:12px 8px;text-align:center; }
+        .rs .rv { font-size:1.3rem;font-weight:800;color:var(--ink); }
+        .rs .rl { font-size:0.6rem;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-top:2px; }
+        .rs.green .rv { color:#16a34a; }
+        .rs.red   .rv { color:#dc2626; }
+        .result-lb-badge {
+            display:inline-flex;align-items:center;gap:6px;
+            background:rgba(200,241,53,0.15);border:1.5px solid var(--lime);
+            border-radius:100px;padding:6px 16px;
+            font-size:0.78rem;font-weight:700;color:var(--ink);
+            margin-bottom:16px;
+        }
+        .result-btns { display:flex;gap:10px;justify-content:center; }
+        .result-btns button { width:auto;padding:12px 24px; }
+
         /* ── Round winner ── */
         #roundWinnerScreen { display:flex;align-items:center;justify-content:center;height:100%; }
         .winner-card {
@@ -313,7 +380,10 @@
 <div class="shell">
     <!-- ── Sidebar ── -->
     <aside class="sidebar">
-        <div class="brand">M<span>MCQ</span></div>
+        <div class="brand">
+            M<span>MCQ</span>
+            <button class="sound-btn" id="soundBtn" title="Toggle sound">🔊</button>
+        </div>
 
         <div class="profile-card">
             <div class="avatar-ring"><span id="sidebarAvatar">🎮</span></div>
@@ -322,23 +392,18 @@
             <div class="score-sub">Total Points</div>
         </div>
 
-        <!-- Tabs -->
         <div class="tabs">
             <button class="tab-btn tab-active" id="tabPlayers">Players</button>
             <button class="tab-btn" id="tabLeaderboard">🏆 Global</button>
         </div>
 
-        <!-- Players panel -->
         <div class="panel" id="panelPlayers">
             <div id="playersList"></div>
         </div>
-
-        <!-- Leaderboard panel -->
         <div class="panel hidden" id="panelLeaderboard">
             <div id="lbList"></div>
         </div>
 
-        <!-- Room code -->
         <div>
             <div class="s-label">Room Code</div>
             <div class="room-digits">
@@ -358,9 +423,8 @@
             <div class="home-inner">
                 <div class="home-badge"><span class="dot"></span> Live Multiplayer Quiz</div>
                 <h1 class="home-title">Seamless <em>Quiz</em><br>Challenge.</h1>
-                <p class="home-sub">Pick your icon, enter your name, host or join a room.</p>
+                <p class="home-sub">Pick your icon, enter your name, then play solo or with friends.</p>
 
-                <!-- Avatar picker -->
                 <div class="av-label">Choose your icon</div>
                 <div class="av-grid" id="avatarGrid"></div>
 
@@ -370,6 +434,8 @@
                 </div>
                 <button class="btn-lime" id="hostBtn">Host New Series →</button>
                 <button class="btn-ghost" id="joinBtn">Join a Match</button>
+                <div class="mode-divider"><span>OR PLAY ALONE</span></div>
+                <button class="btn-solo" id="soloBtn">🎯 Solo Practice Mode</button>
             </div>
         </section>
 
@@ -392,19 +458,79 @@
             </div>
         </section>
 
-        <!-- GAME -->
+        <!-- MULTIPLAYER GAME -->
         <section id="gameScreen" class="hidden">
             <div id="answerToast"></div>
             <div class="game-topbar">
                 <div id="roundIndicator">ROUND 1 · Q 1/20</div>
                 <div class="timer-wrap">
-                    <div class="timer-track"><div id="timerBar"></div></div>
-                    <div id="timerText">20</div>
+                    <div class="timer-track"><div id="timerBar" class="t-bar"></div></div>
+                    <div id="timerText" class="timer-num">20</div>
                 </div>
             </div>
             <div class="q-tag" id="qTag">Question 1 of 20</div>
             <div class="q-box" id="questionText"></div>
             <div class="opts-grid" id="options"></div>
+        </section>
+
+        <!-- SOLO GAME -->
+        <section id="soloScreen" class="hidden">
+            <div id="soloToast"></div>
+            <div class="game-topbar">
+                <div id="soloIndicator">SOLO · Q 1/20</div>
+                <div class="timer-wrap">
+                    <div class="timer-track"><div id="soloTimerBar" class="t-bar"></div></div>
+                    <div id="soloTimerText" class="timer-num">20</div>
+                </div>
+            </div>
+            <!-- Live stats strip -->
+            <div class="solo-strip">
+                <div class="solo-stat">
+                    <div class="sv" id="soloScoreVal">0</div>
+                    <div class="sl">Score</div>
+                </div>
+                <div class="solo-stat">
+                    <div class="sv" id="soloCorrectVal">0</div>
+                    <div class="sl">Correct</div>
+                </div>
+                <div class="solo-stat">
+                    <div class="sv" id="soloStreakVal">0🔥</div>
+                    <div class="sl">Streak</div>
+                </div>
+            </div>
+            <div class="solo-tag" id="soloQTag">Question 1 of 20</div>
+            <div class="q-box" id="soloQuestionText"></div>
+            <div class="opts-grid" id="soloOptions"></div>
+        </section>
+
+        <!-- SOLO RESULT -->
+        <section id="soloResultScreen" class="hidden">
+            <div class="result-card">
+                <span class="result-emoji" id="resultEmoji">🏆</span>
+                <div class="result-title" id="resultTitle">Well Done!</div>
+                <div class="result-sub" id="resultSub">Here's how you did</div>
+                <div class="result-score-big" id="resultScore">0</div>
+                <div class="result-score-label">Points Scored</div>
+                <div class="result-stats">
+                    <div class="rs green">
+                        <div class="rv" id="statCorrect">0</div>
+                        <div class="rl">Correct</div>
+                    </div>
+                    <div class="rs red">
+                        <div class="rv" id="statWrong">0</div>
+                        <div class="rl">Wrong</div>
+                    </div>
+                    <div class="rs">
+                        <div class="rv" id="statStreak">0🔥</div>
+                        <div class="rl">Best Streak</div>
+                    </div>
+                </div>
+                <div class="result-lb-badge" id="lbBadge">🏆 Score saved to Global Leaderboard!</div>
+                <div class="result-btns">
+                    <button class="btn-lime" id="soloPlayAgainBtn" style="margin-bottom:0">Play Again</button>
+                    <button class="btn-outline-sm" onclick="location.reload()">Home</button>
+                </div>
+            </div>
         </section>
 
         <!-- ROUND WINNER -->
