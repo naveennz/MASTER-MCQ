@@ -1,12 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import {
-  getFirestore, doc, setDoc, getDoc, updateDoc,
-  collection, onSnapshot, runTransaction, increment
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, onSnapshot, runTransaction, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import { RAW_MCQ_TEXT } from "./rawQuestions.js";
 
-// ─── Firebase Init ────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyDg4OZWHV2AAR6_h40oQ3_16KxS5gmuFtI",
   authDomain: "master-mcq-2ee53.firebaseapp.com",
@@ -15,492 +11,277 @@ const firebaseConfig = {
   messagingSenderId: "643022714882",
   appId: "1:643022714882:web:19aa55481475598cefcf1b"
 };
-const app  = initializeApp(firebaseConfig);
-const db   = getFirestore(app);
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 const auth = getAuth(app);
 
-// ─── Global State ─────────────────────────────────────────────────────────────
-let uid, roomCode, roomRef;
+// --- DESIGN SETTINGS ---
+const AVAILABLE_COLORS = ['#ffb84d', '#3498db', '#e74c3c', '#9b59b6', '#2ecc71', '#16a085', '#f1c40f', '#e67e22'];
+const BADGE_DEFS = {
+    "victor": { icon: "🏆", title: "Duo Winner" },
+    "expert": { icon: "🎯", title: "Score 200 in a Level" }
+};
+
+let uid, roomCode, roomRef, gameData, gameTimer, isSolo = false;
 let allQuestions = [];
+let mySelection = null;
+let userData = null;
 
-// Snapshot data (latest from Firestore)
-let gameData    = null;
-let playerCount = 0;
-
-// Per-question LOCAL state — never written to Firestore
-// This is the key fix: other players NEVER see your selection until showAnswer=true
-let mySelection  = null;   // which option index this player picked (local only)
-let hasAnswered  = false;   // did this player click something?
-let revealLocked = false;   // prevent double-triggering reveal (host guard)
-
-// Timer state
-let timerRAF   = null;
-let timerStart = null;
-const TIMER_MS = 20_000;
-
-// Track which question the current UI is showing to detect new questions
-let renderedQIndex = -1;
-
-// ─── Parse Questions ──────────────────────────────────────────────────────────
-// File format per block:
-//   **1. Question text?**
-//   - A) Option one
-//   - B) Option two
-//   - C) Option three
-//   - D) Option four
-//   **Answer: B**
-function parseQuestions() {
-  return RAW_MCQ_TEXT
-    .split("---")
-    .filter(b => b.includes("**Answer:"))
-    .map(block => {
-      const lines = block.trim().split("\n").map(l => l.trim()).filter(Boolean);
-
-      // Question: ** line that is NOT the Answer line
-      const qLine = lines.find(l => l.startsWith("**") && !l.startsWith("**Answer"));
-      const question = qLine
-        ? qLine.replace(/^\*+/, "").replace(/\*+$/, "").replace(/^\d+\.\s*/, "").trim()
-        : "";
-
-      // Options: "- A) text", "- B) text", etc.
-      const options = lines
-        .filter(l => /^-\s*[A-D]\)/.test(l))
-        .map(l => l.replace(/^-\s*[A-D]\)\s*/, "").trim());
-
-      // Answer letter from "**Answer: B**"
-      const ansLine = lines.find(l => l.startsWith("**Answer:"));
-      const ansLetter = ansLine
-        ? ansLine.replace(/\*+/g, "").replace("Answer:", "").trim().charAt(0).toUpperCase()
-        : "A";
-      const answerIndex = Math.max(0, ["A","B","C","D"].indexOf(ansLetter));
-
-      return { question, options, answerIndex };
-    })
-    .filter(q => q.question && q.options.length === 4);
-}
-
-// ─── Auth Boot ────────────────────────────────────────────────────────────────
-signInAnonymously(auth).then(res => {
-  uid = res.user.uid;
-  allQuestions = parseQuestions();
+// --- INITIALIZE ---
+signInAnonymously(auth).then(async (res) => {
+    uid = res.user.uid;
+    allQuestions = parseQuestions();
+    await loadProfile();
+    renderColorGrid();
+    loadLeaderboard();
 });
 
-// ─── DOM Helpers ──────────────────────────────────────────────────────────────
-const $ = id => document.getElementById(id);
-function show(sectionId) {
-  document.querySelectorAll("section").forEach(s => s.classList.add("hidden"));
-  $(sectionId).classList.remove("hidden");
-}
-function renderRoomCode(code) {
-  [...(code || "")].forEach((c, i) => {
-    const el = $("m" + (i + 1));
-    if (el) el.innerText = c;
-  });
-}
-
-// ─── Host ─────────────────────────────────────────────────────────────────────
-$("hostBtn").onclick = async () => {
-  const name = $("nameInput").value.trim();
-  if (!name) return;
-  roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-  roomRef  = doc(db, "rooms", roomCode);
-
-  await setDoc(roomRef, {
-    status:          "waiting",
-    host:            uid,
-    round:           1,
-    currentQuestion: 0,
-    questions:       pickQuestions(20),
-    answersCount:    0,
-    showAnswer:      false,
-    playerCount:     0
-  });
-  await setDoc(doc(roomRef, "players", uid), { name, score: 0, roundScores: [0,0,0,0,0] });
-
-  startLobby(name);
-};
-
-// ─── Join ─────────────────────────────────────────────────────────────────────
-$("joinBtn").onclick = async () => {
-  const code = $("roomInput").value.trim().toUpperCase();
-  const name = $("nameInput").value.trim();
-  if (!name || code.length !== 4) return;
-
-  roomRef = doc(db, "rooms", code);
-  const snap = await getDoc(roomRef);
-  if (!snap.exists()) return alert("Room not found!");
-  roomCode = code;
-
-  await setDoc(doc(roomRef, "players", uid), { name, score: 0, roundScores: [0,0,0,0,0] });
-  startLobby(name);
-};
-
-// ─── Lobby Init ───────────────────────────────────────────────────────────────
-function startLobby(name) {
-  $("playerName").innerText = name;
-  $("roomLabel").innerText  = "ROOM " + roomCode;
-  renderRoomCode(roomCode);
-
-  // Populate copy row
-  const display = $("copyCodeDisplay");
-  if (display) display.innerText = roomCode || "----";
-
-  show("lobbyScreen");
-  subscribeToRoom();
-  subscribeToPlayers();
-  setupCopyBtn();
-}
-
-function setupCopyBtn() {
-  const btn = $("copyCodeBtn");
-  if (!btn) return;
-  btn.onclick = () => {
-    navigator.clipboard.writeText(roomCode || "").then(() => {
-      btn.classList.add("copied");
-      $("copyLabel").innerText = "Copied!";
-      setTimeout(() => {
-        btn.classList.remove("copied");
-        $("copyLabel").innerText = "Copy Code";
-      }, 2000);
-    }).catch(() => {
-      // Fallback for browsers without clipboard API
-      const el = document.createElement("textarea");
-      el.value = roomCode;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-      btn.classList.add("copied");
-      $("copyLabel").innerText = "Copied!";
-      setTimeout(() => {
-        btn.classList.remove("copied");
-        $("copyLabel").innerText = "Copy Code";
-      }, 2000);
+function parseQuestions() {
+    const blocks = RAW_MCQ_TEXT.split("---").filter(b => b.includes("**Answer:"));
+    return blocks.map(block => {
+        const lines = block.trim().split("\n");
+        return {
+            question: lines.find(l => l.startsWith("**")).replace(/\*\*/g, ""),
+            options: lines.filter(l => l.startsWith("- ")).map(l => l.replace("- ", "")),
+            answerIndex: ["A", "B", "C", "D"].indexOf(lines.find(l => l.startsWith("**Answer:")).split(":")[1].trim())
+        };
     });
-  };
 }
 
-// ─── Room Subscription ───────────────────────────────────────────────────────
-// Single source of truth for game state changes.
-function subscribeToRoom() {
-  onSnapshot(roomRef, snap => {
-    const prev = gameData;
-    gameData   = snap.data();
-    if (!gameData) return;
-
-    const isHost = gameData.host === uid;
-
-    if (gameData.status === "waiting") {
-      // Update lobby UI
-      if (isHost) {
-        $("startBtn").classList.remove("hidden");
-        $("lobbyStatus").innerText = "You are the host.";
-      } else {
-        $("startBtn").classList.add("hidden");
-        $("lobbyStatus").innerText = "Waiting for host to start...";
-      }
-
-    } else if (gameData.status === "playing") {
-      show("gameScreen");
-
-      const qIdx = gameData.currentQuestion;
-
-      if (qIdx !== renderedQIndex) {
-        // ── New question ──────────────────────────────────────────────────
-        renderedQIndex = qIdx;
-        mySelection    = null;
-        hasAnswered    = false;
-        revealLocked   = false;
-        renderQuestion();
-        if (!gameData.showAnswer) startTimer();
-
-      } else if (gameData.showAnswer && prev && !prev.showAnswer) {
-        // ── Answer just revealed ──────────────────────────────────────────
-        stopTimer();
-        revealQuestion();        // show correct/wrong states
-        showAnswerToast();
-
-      } else if (!gameData.showAnswer && prev && prev.showAnswer) {
-        // ── Edge case: showAnswer reset (shouldn't happen but guard it) ───
-        // Do nothing — new qIdx will handle it
-      }
-
-      // ── Host: check if all players have answered ──────────────────────
-      // (runs on every room update, safe because of revealLocked guard)
-      if (isHost && !gameData.showAnswer && gameData.answersCount >= playerCount && playerCount > 0) {
-        doReveal();
-      }
-
-    } else if (gameData.status === "roundEnd") {
-      stopTimer();
-      show("roundWinnerScreen");
-      $("nextLevelBtn").classList.toggle("hidden", !isHost);
-
-    } else if (gameData.status === "seriesEnd") {
-      stopTimer();
-      showSeriesWinner();
-    }
-  });
-}
-
-// ─── Players Subscription ────────────────────────────────────────────────────
-function subscribeToPlayers() {
-  onSnapshot(collection(roomRef, "players"), snap => {
-    playerCount = snap.size;
-
-    // Sort by score
-    const players = [];
-    snap.forEach(d => players.push({ id: d.id, ...d.data() }));
-    players.sort((a, b) => b.score - a.score);
-
-    const list = $("playersList");
-    list.innerHTML = "";
-    players.forEach(p => {
-      const row = document.createElement("div");
-      row.className = "player-row" + (p.id === uid ? " is-me" : "");
-      row.innerHTML = `<span>${p.name}</span><span class="pts">${p.score}</span>`;
-      list.appendChild(row);
-      if (p.id === uid) $("totalScore").innerText = p.score;
-    });
-
-    // Enable/disable start button
-    const isHost = gameData && gameData.host === uid;
-    $("startBtn").disabled = !(isHost && snap.size >= 2);
-
-    // Host: check if all answered (in case players sub fires after room sub)
-    if (gameData && gameData.host === uid && gameData.status === "playing"
-        && !gameData.showAnswer && gameData.answersCount >= playerCount && playerCount > 0) {
-      doReveal();
-    }
-  });
-}
-
-// ─── Render Question (pre-reveal, no answer shown) ───────────────────────────
-function renderQuestion() {
-  const q = gameData.questions[gameData.currentQuestion];
-  const letters = ["A","B","C","D"];
-
-  $("roundIndicator").innerText = `ROUND ${gameData.round}  ·  Q ${gameData.currentQuestion + 1}/20`;
-  $("qTag").innerText           = `Question ${gameData.currentQuestion + 1} of 20`;
-  $("questionText").innerText   = q.question;
-
-  const container = $("options");
-  container.innerHTML = "";
-
-  q.options.forEach((opt, i) => {
-    const div = document.createElement("div");
-    div.className = "opt";
-
-    const badge = document.createElement("span");
-    badge.className = "opt-letter";
-    badge.innerText = letters[i];
-    div.appendChild(badge);
-
-    const txt = document.createElement("span");
-    txt.innerText = opt;
-    div.appendChild(txt);
-
-    if (hasAnswered && i === mySelection) div.classList.add("marked");
-    if (hasAnswered) div.dataset.locked = "true";
-    if (!hasAnswered) div.onclick = () => handleAnswer(i);
-    container.appendChild(div);
-  });
-}
-
-// ─── Reveal Question (post-reveal, show correct/wrong) ───────────────────────
-function revealQuestion() {
-  const q = gameData.questions[gameData.currentQuestion];
-  const letters = ["A","B","C","D"];
-
-  const container = $("options");
-  container.innerHTML = "";
-
-  q.options.forEach((opt, i) => {
-    const div = document.createElement("div");
-    div.className = "opt";
-    div.dataset.locked = "true";
-
-    // Letter badge
-    const badge = document.createElement("span");
-    badge.className = "opt-letter";
-    badge.innerText = letters[i];
-    div.appendChild(badge);
-
-    // Option text
-    const txt = document.createElement("span");
-    txt.innerText = opt;
-    div.appendChild(txt);
-
-    if (i === q.answerIndex) {
-      div.classList.add("correct");
-    } else if (i === mySelection) {
-      div.classList.add("wrong");
+// --- PROFILE LOGIC ---
+async function loadProfile() {
+    const userRef = doc(db, "users", uid);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+        userData = snap.data();
     } else {
-      div.classList.add("dimmed");
+        userData = { name: "Guest", careerPts: 0, color: AVAILABLE_COLORS[0], badges: [], wins: 0 };
+        await setDoc(userRef, userData);
     }
-
-    container.appendChild(div);
-  });
+    updateSidebarUI();
+    renderBadges();
 }
 
-// ─── Handle Answer ────────────────────────────────────────────────────────────
-async function handleAnswer(idx) {
-  if (hasAnswered || gameData.showAnswer) return;
+function updateSidebarUI() {
+    document.getElementById("sidebarCircle").style.backgroundColor = userData.color;
+    document.getElementById("playerName").innerText = userData.name;
+    document.getElementById("totalScore").innerText = userData.careerPts;
+    document.getElementById("nameInput").value = userData.name !== "Guest" ? userData.name : "";
+}
 
-  hasAnswered = true;
-  mySelection = idx;
-
-  // Immediately show selection locally (only for this player!)
-  renderQuestion();
-
-  const q = gameData.questions[gameData.currentQuestion];
-
-  // Score if correct — use runTransaction to safely read+write roundScores
-  if (idx === q.answerIndex) {
-    const pRef = doc(roomRef, "players", uid);
-    await runTransaction(db, async t => {
-      const snap   = await t.get(pRef);
-      const p      = snap.data();
-      const rounds = [...p.roundScores];
-      rounds[gameData.round - 1] += 10;
-      t.update(pRef, { score: increment(10), roundScores: rounds });
+function renderColorGrid() {
+    const grid = document.getElementById("colorGrid");
+    grid.innerHTML = "";
+    AVAILABLE_COLORS.forEach(c => {
+        const div = document.createElement("div");
+        div.className = "color-option" + (userData.color === c ? " selected" : "");
+        div.style.backgroundColor = c;
+        div.onclick = () => selectColor(c);
+        grid.appendChild(div);
     });
-  }
-
-  // Atomically increment answer count — host's listener checks this
-  await updateDoc(roomRef, { answersCount: increment(1) });
 }
 
-// ─── Host: Trigger Reveal ────────────────────────────────────────────────────
-async function doReveal() {
-  if (revealLocked || !gameData || gameData.showAnswer) return;
-  revealLocked = true;
-  await updateDoc(roomRef, { showAnswer: true });
+async function selectColor(c) {
+    userData.color = c;
+    await updateDoc(doc(db, "users", uid), { color: c });
+    updateSidebarUI();
+    renderColorGrid();
+}
 
-  setTimeout(async () => {
-    if (!gameData) return;
-    const nextQ = gameData.currentQuestion + 1;
-    if (nextQ < 20) {
-      await updateDoc(roomRef, {
-        currentQuestion: nextQ,
-        showAnswer:      false,
-        answersCount:    0
-      });
+function renderBadges() {
+    const container = document.getElementById("badgeContainer");
+    container.innerHTML = "";
+    Object.keys(BADGE_DEFS).forEach(id => {
+        const unlocked = userData.badges.includes(id);
+        container.innerHTML += `<div class="badge-item ${unlocked ? 'unlocked' : ''}" title="${BADGE_DEFS[id].title}">${BADGE_DEFS[id].icon}</div>`;
+    });
+}
+
+// --- LEADERBOARD ---
+function loadLeaderboard() {
+    const q = query(collection(db, "users"), orderBy("careerPts", "desc"), limit(10));
+    onSnapshot(q, snap => {
+        const body = document.getElementById("globalLeaderboardBody");
+        body.innerHTML = "";
+        snap.forEach((d, i) => {
+            const u = d.data();
+            body.innerHTML += `<tr><td>${i+1}</td><td style="text-align:left"><span class="list-icon" style="background:${u.color}"></span> ${u.name}</td><td>${u.careerPts}</td></tr>`;
+        });
+    });
+}
+
+// --- NAVIGATION ---
+const show = (id) => { document.querySelectorAll('section').forEach(s => s.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); };
+document.getElementById("toProfileBtn").onclick = () => show("profileScreen");
+document.getElementById("sidebarProfileTrigger").onclick = () => show("profileScreen");
+document.getElementById("backHomeBtn").onclick = () => show("homeScreen");
+
+document.getElementById("hostBtn").onclick = () => startMatch("host");
+document.getElementById("joinBtn").onclick = () => startMatch("join");
+document.getElementById("soloBtn").onclick = () => startMatch("solo");
+
+async function startMatch(mode) {
+    const name = document.getElementById("nameInput").value.trim() || "Guest";
+    userData.name = name;
+    await updateDoc(doc(db, "users", uid), { name });
+    updateSidebarUI();
+
+    if (mode === "solo") {
+        isSolo = true;
+        gameData = { status: "playing", round: 1, currentQuestion: 0, questions: getRandQs(), showAnswer: false };
+        show("gameScreen"); renderGame();
+    } else if (mode === "host") {
+        isSolo = false;
+        roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+        roomRef = doc(db, "rooms", roomCode);
+        await setDoc(roomRef, { status: "waiting", host: uid, round: 1, currentQuestion: 0, questions: getRandQs(), answersCount: 0, showAnswer: false });
+        await setDoc(doc(roomRef, "players", uid), { name, score: 0, roundScores: [0,0,0,0,0], color: userData.color });
+        enterLobby();
     } else {
-      // Round over — check if series is also over
-      const nextRound = gameData.round + 1;
-      await updateDoc(roomRef, {
-        status: nextRound > 5 ? "seriesEnd" : "roundEnd"
-      });
+        const code = document.getElementById("roomInput").value.trim().toUpperCase();
+        roomRef = doc(db, "rooms", code);
+        const s = await getDoc(roomRef);
+        if(!s.exists()) return alert("Room missing");
+        roomCode = code;
+        await setDoc(doc(roomRef, "players", uid), { name, score: 0, roundScores: [0,0,0,0,0], color: userData.color });
+        enterLobby();
     }
-  }, 4000); // Show answer for 4 seconds
 }
 
-// ─── Timer ────────────────────────────────────────────────────────────────────
+function getRandQs() { return [...allQuestions].sort(() => 0.5 - Math.random()).slice(0, 20); }
+
+function enterLobby() {
+    document.getElementById("roomLabel").innerText = "ROOM " + roomCode;
+    [...roomCode].forEach((c, i) => document.getElementById("m" + (i + 1)).innerText = c);
+    show("lobbyScreen"); watchRoom();
+}
+
+// --- GAMEPLAY ---
+function watchRoom() {
+    onSnapshot(roomRef, snap => {
+        gameData = snap.data();
+        if (!gameData) return;
+        if (gameData.status === "playing") { show("gameScreen"); renderGame(); }
+        else if (gameData.status === "roundEnd") show("roundWinnerScreen");
+        else if (gameData.status === "seriesEnd") showSeriesWinner();
+        
+        const host = gameData.host === uid;
+        document.getElementById("startBtn").classList.toggle("hidden", !host);
+        document.getElementById("lobbyStatus").innerText = host ? "Wait for players..." : "Waiting for host...";
+    });
+
+    onSnapshot(collection(roomRef, "players"), snap => {
+        const list = document.getElementById("playersList");
+        list.innerHTML = "";
+        snap.forEach(d => {
+            const p = d.data();
+            list.innerHTML += `<div><span><span class="list-icon" style="background:${p.color}"></span>${p.name}</span> <span>${p.score}</span></div>`;
+        });
+        if (gameData?.host === uid) document.getElementById("startBtn").disabled = snap.size < 2;
+    });
+}
+
+function renderGame() {
+    const q = gameData.questions[gameData.currentQuestion];
+    document.getElementById("roundIndicator").innerText = `ROUND ${gameData.round} - ${gameData.currentQuestion + 1}/20`;
+    document.getElementById("questionText").innerText = q.question;
+    const container = document.getElementById("options");
+    container.innerHTML = "";
+
+    q.options.forEach((opt, i) => {
+        const div = document.createElement("div");
+        div.className = "option";
+        if (mySelection === i && !gameData.showAnswer) div.classList.add("marked");
+        if (gameData.showAnswer) {
+            if (i === q.answerIndex) div.classList.add("correct");
+            else if (mySelection === i) div.classList.add("wrong");
+        }
+        div.innerText = opt;
+        div.onclick = () => handleAnswer(i, q.answerIndex);
+        container.appendChild(div);
+    });
+    if (!gameData.showAnswer) startTimer();
+    else clearInterval(gameTimer);
+}
+
 function startTimer() {
-  stopTimer();
-  timerStart = performance.now();
-  const bar  = $("timerBar");
-  const txt  = $("timerText");
+    clearInterval(gameTimer);
+    let timeLeft = 20;
+    gameTimer = setInterval(() => {
+        timeLeft -= 0.1;
+        document.getElementById("timerBar").style.width = (timeLeft / 20) * 100 + "%";
+        if (timeLeft <= 0) { clearInterval(gameTimer); if (isSolo || uid === gameData.host) triggerNext(); }
+    }, 100);
+}
 
-  function tick(now) {
-    const elapsed   = now - timerStart;
-    const remaining = Math.max(0, TIMER_MS - elapsed);
-    const pct       = remaining / TIMER_MS;
-    const secs      = Math.ceil(remaining / 1000);
-
-    bar.style.width = pct * 100 + "%";
-    bar.classList.toggle("low", pct < 0.3);
-    if (txt) txt.innerText = secs;
-
-    if (remaining > 0) {
-      timerRAF = requestAnimationFrame(tick);
-    } else {
-      // Time's up — host triggers reveal
-      if (gameData && gameData.host === uid && !gameData.showAnswer) {
-        doReveal();
-      }
+async function handleAnswer(idx, correct) {
+    if (mySelection !== null) return;
+    mySelection = idx;
+    renderGame();
+    if (idx === correct) {
+        await updateCareer(10, 10);
+        if (!isSolo) {
+            const pRef = doc(roomRef, "players", uid);
+            await runTransaction(db, async (t) => {
+                const p = (await t.get(pRef)).data();
+                const r = p.roundScores; r[gameData.round - 1] += 10;
+                t.update(pRef, { score: p.score + 10, roundScores: r });
+            });
+        }
     }
-  }
-
-  timerRAF = requestAnimationFrame(tick);
+    if (isSolo) setTimeout(triggerNext, 500);
+    else {
+        await updateDoc(roomRef, { answersCount: gameData.answersCount + 1 });
+        if (gameData.answersCount + 1 >= 2 && uid === gameData.host) triggerNext();
+    }
 }
 
-function stopTimer() {
-  if (timerRAF) { cancelAnimationFrame(timerRAF); timerRAF = null; }
-  const bar = $("timerBar");
-  const txt = $("timerText");
-  if (bar) { bar.style.width = "0%"; bar.classList.remove("low"); }
-  if (txt) txt.innerText = "0";
+async function triggerNext() {
+    const next = async () => {
+        mySelection = null;
+        if (gameData.currentQuestion + 1 < 20) {
+            if(isSolo) { gameData.currentQuestion++; renderGame(); }
+            else await updateDoc(roomRef, { currentQuestion: gameData.currentQuestion + 1, showAnswer: false, answersCount: 0 });
+        } else {
+            if(isSolo) show("roundWinnerScreen");
+            else await updateDoc(roomRef, { status: "roundEnd" });
+        }
+    };
+    if (isSolo) next();
+    else { await updateDoc(roomRef, { showAnswer: true }); setTimeout(next, 3000); }
 }
 
-// ─── Answer Toast ─────────────────────────────────────────────────────────────
-function showAnswerToast() {
-  const toast = $("answerToast");
-  if (!toast) return;
-
-  const q = gameData.questions[gameData.currentQuestion];
-  toast.className = "";
-
-  if (!hasAnswered) {
-    toast.innerText = "⏱  Time's up!";
-    toast.className = "timeout-toast show";
-  } else if (mySelection === q.answerIndex) {
-    toast.innerText = "✓  Correct  +10";
-    toast.className = "correct-toast show";
-  } else {
-    toast.innerText = "✗  Wrong answer";
-    toast.className = "wrong-toast show";
-  }
-
-  setTimeout(() => toast.classList.remove("show"), 3500);
-}
-
-// ─── Series Winner ────────────────────────────────────────────────────────────
-function showSeriesWinner() {
-  show("seriesWinnerScreen");
-  onSnapshot(collection(roomRef, "players"), snap => {
-    const players = [];
-    snap.forEach(d => players.push(d.data()));
-    players.sort((a, b) => b.score - a.score);
-
-    let html = `<table>
-      <tr><th>Player</th><th>R1</th><th>R2</th><th>R3</th><th>R4</th><th>R5</th><th>Total</th></tr>`;
-    players.forEach((p, rank) => {
-      const medal = rank === 0 ? "🥇 " : rank === 1 ? "🥈 " : rank === 2 ? "🥉 " : "";
-      html += `<tr>
-        <td>${medal}${p.name}</td>
-        <td>${p.roundScores[0]}</td>
-        <td>${p.roundScores[1]}</td>
-        <td>${p.roundScores[2]}</td>
-        <td>${p.roundScores[3]}</td>
-        <td>${p.roundScores[4]}</td>
-        <td><strong>${p.score}</strong></td>
-      </tr>`;
+async function updateCareer(pts, currentScore) {
+    const userRef = doc(db, "users", uid);
+    await runTransaction(db, async (t) => {
+        const d = (await t.get(userRef)).data();
+        let b = d.badges || [];
+        if(currentScore >= 200 && !b.includes("expert")) b.push("expert");
+        t.update(userRef, { careerPts: (d.careerPts || 0) + pts, badges: b });
     });
-    $("seriesStats").innerHTML = html + `</table>`;
-  });
+    loadProfile();
 }
 
-// ─── Buttons ──────────────────────────────────────────────────────────────────
-$("startBtn").onclick = () => {
-  if (!gameData || gameData.host !== uid) return;
-  updateDoc(roomRef, { status: "playing" });
+document.getElementById("startBtn").onclick = () => updateDoc(roomRef, { status: "playing" });
+document.getElementById("nextLevelBtn").onclick = async () => {
+    if (gameData.round < 5) {
+        if(isSolo) { gameData.round++; gameData.currentQuestion = 0; gameData.questions = getRandQs(); show("gameScreen"); renderGame(); }
+        else await updateDoc(roomRef, { round: gameData.round + 1, currentQuestion: 0, status: "playing", questions: getRandQs(), answersCount: 0, showAnswer: false });
+    } else {
+        if(isSolo) showSeriesWinner();
+        else await updateDoc(roomRef, { status: "seriesEnd" });
+    }
 };
 
-$("nextLevelBtn").onclick = async () => {
-  if (!gameData || gameData.host !== uid) return;
-  await updateDoc(roomRef, {
-    round:           gameData.round + 1,
-    currentQuestion: 0,
-    status:          "playing",
-    questions:       pickQuestions(20),
-    answersCount:    0,
-    showAnswer:      false
-  });
-};
-
-// ─── Utility ──────────────────────────────────────────────────────────────────
-function pickQuestions(n) {
-  return [...allQuestions].sort(() => Math.random() - 0.5).slice(0, n);
+async function showSeriesWinner() {
+    show("seriesWinnerScreen");
+    const body = document.getElementById("seriesStats");
+    let html = `<table><tr><th>Player</th><th>R1</th><th>R2</th><th>R3</th><th>R4</th><th>R5</th><th>Total</th></tr>`;
+    if(isSolo) html += `<tr><td>${userData.name}</td><td colspan="5">Solo Finish</td><td>${document.getElementById("totalScore").innerText}</td></tr>`;
+    else {
+        const snap = await getDoc(collection(roomRef, "players")); // Simplified Duo logic
+        // Duo table logic here
+    }
+    body.innerHTML = html + "</table>";
 }
