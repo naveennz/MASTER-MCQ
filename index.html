@@ -218,6 +218,49 @@
         td { padding:9px;border-bottom:1.5px solid var(--gray);font-size:0.85rem;text-align:center;font-weight:600; }
         td strong { color:var(--purple);font-family:'DM Mono',monospace; }
         tr.my-row td { background:rgba(200,241,53,0.07); }
+
+        /* ── Solo mode button ── */
+        .btn-solo { width:100%;padding:13px;background:var(--navy);color:var(--lime);font-size:0.95rem;box-shadow:4px 4px 0 rgba(0,0,0,0.3);border-color:var(--navy);margin-top:10px; }
+
+        /* ── Solo screen ── */
+        #soloScreen { display:flex;flex-direction:column;height:100%;padding:18px 22px;position:relative; }
+        .solo-stats-bar { display:flex;align-items:center;justify-content:space-between;margin-bottom:10px; }
+        .solo-stat { display:flex;flex-direction:column;gap:1px; }
+        .solo-stat-lbl { font-size:0.62rem;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase; }
+        .solo-stat-val { font-family:'DM Mono',monospace;font-size:1.1rem;font-weight:800;color:var(--ink); }
+
+        .solo-feedback {
+            margin-top:10px; padding:10px 14px; border-radius:12px;
+            font-size:0.88rem; font-weight:700; line-height:1.4;
+            border:2px solid transparent;
+        }
+        .solo-feedback.hidden { display:none; }
+        .solo-correct { background:#f0fdf4;border-color:#16a34a;color:#15803d; }
+        .solo-wrong   { background:#fef2f2;border-color:#dc2626;color:#b91c1c; }
+        .solo-timeout { background:rgba(26,27,46,0.07);border-color:var(--navy);color:var(--ink); }
+
+        /* Solo timer bar reuse */
+        #soloTimerBar { height:100%;background:var(--lime);width:100%;border-radius:100px;transition:width 0.1s linear,background 0.4s; }
+        #soloTimerBar.low { background:#ff6b6b; }
+
+        /* ── Solo result ── */
+        #soloResultScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:28px; }
+        .sr-card { border:2.5px solid var(--navy);border-radius:20px;padding:32px 36px;text-align:center;width:100%;max-width:420px;background:white;box-shadow:6px 6px 0 var(--navy); }
+        .sr-grade     { font-size:1.4rem;font-weight:800;margin-bottom:10px; }
+        .sr-score     { font-size:3.5rem;font-weight:800;color:var(--purple);line-height:1;font-family:'DM Mono',monospace; }
+        .sr-score-lbl { font-size:0.72rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px; }
+        .sr-pb        { font-size:0.82rem;font-weight:700;color:var(--muted);margin-bottom:20px;padding:6px 12px;border-radius:20px;display:inline-block; }
+        .sr-pb.new-pb { background:var(--lime);color:var(--ink);border:1.5px solid var(--navy); }
+        .sr-stats     { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px; }
+        .sr-stat      { border:2px solid var(--gray);border-radius:12px;padding:12px 8px; }
+        .sr-stat-val  { font-family:'DM Mono',monospace;font-size:1.5rem;font-weight:800;line-height:1; }
+        .sr-stat-lbl  { font-size:0.65rem;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-top:4px; }
+        .sr-correct .sr-stat-val { color:#16a34a; }
+        .sr-wrong   .sr-stat-val { color:#dc2626; }
+        .sr-streak  .sr-stat-val { color:var(--purple); }
+        .sr-pct     .sr-stat-val { color:var(--ink); }
+        .sr-actions { display:flex;flex-direction:column;gap:8px; }
+
     </style>
 </head>
 <body>
@@ -288,6 +331,7 @@
                 </div>
                 <button class="btn-lime" id="hostBtn">Host New Series →</button>
                 <button class="btn-ghost" id="joinBtn">Join a Match</button>
+                <button class="btn-solo" id="soloBtn">⚡ Solo Practice</button>
             </div>
         </section>
 
@@ -343,6 +387,66 @@
                 <h1>🏆 Series Final Results 🏆</h1>
                 <div id="seriesStats" style="overflow-x:auto;margin-bottom:20px;"></div>
                 <button onclick="location.reload()" class="btn-outline-sm">Play Again</button>
+            </div>
+        </section>
+
+
+        <!-- SOLO GAME -->
+        <section id="soloScreen" class="hidden">
+            <div id="answerToast"></div>
+            <div class="game-topbar">
+                <div id="soloRoundIndicator">SOLO · Q 1/20</div>
+                <div class="timer-wrap">
+                    <div class="timer-track"><div id="soloTimerBar"></div></div>
+                    <div id="soloTimerText">20</div>
+                </div>
+            </div>
+            <div class="solo-stats-bar">
+                <div class="solo-stat"><span class="solo-stat-lbl">Score</span><span class="solo-stat-val" id="soloScoreVal">0</span></div>
+                <div class="q-tag" id="soloQTag" style="margin:0">Question 1 of 20</div>
+                <div class="solo-stat" style="text-align:right"><span class="solo-stat-lbl">Streak</span><span class="solo-stat-val" id="soloStreakVal">0</span></div>
+            </div>
+            <div class="q-box" id="soloQuestion"></div>
+            <div class="opts-grid" id="soloOptions"></div>
+            <div class="solo-feedback hidden" id="soloFeedback"></div>
+            <div style="display:flex;gap:10px;margin-top:10px;justify-content:space-between;align-items:center">
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-outline-sm" id="soloHomeBtn">← Home</button>
+                    <button class="btn-outline-sm" id="soloPlayAgainBtn">↺ Restart</button>
+                </div>
+                <button class="btn-purple hidden" id="soloNextBtn">Next →</button>
+            </div>
+        </section>
+
+        <!-- SOLO RESULT -->
+        <section id="soloResultScreen" class="hidden">
+            <div class="sr-card">
+                <div class="sr-grade" id="srGrade">🏆 Excellent!</div>
+                <div class="sr-score" id="srScore">0</div>
+                <div class="sr-score-lbl">points scored</div>
+                <div class="sr-pb" id="srPB"></div>
+                <div class="sr-stats">
+                    <div class="sr-stat sr-correct">
+                        <div class="sr-stat-val" id="srCorrect">0</div>
+                        <div class="sr-stat-lbl">Correct</div>
+                    </div>
+                    <div class="sr-stat sr-wrong">
+                        <div class="sr-stat-val" id="srWrong">0</div>
+                        <div class="sr-stat-lbl">Wrong</div>
+                    </div>
+                    <div class="sr-stat sr-streak">
+                        <div class="sr-stat-val" id="srStreak">0</div>
+                        <div class="sr-stat-lbl">Best Streak</div>
+                    </div>
+                    <div class="sr-stat sr-pct">
+                        <div class="sr-stat-val" id="srPercent">0%</div>
+                        <div class="sr-stat-lbl">Accuracy</div>
+                    </div>
+                </div>
+                <div class="sr-actions">
+                    <button class="btn-lime" id="srPlayAgainBtn">Play Again →</button>
+                    <button class="btn-outline-sm" id="srHomeBtn">Back to Home</button>
+                </div>
             </div>
         </section>
 
