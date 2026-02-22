@@ -173,6 +173,11 @@ function show(id) {
   document.querySelectorAll("section").forEach(s => s.classList.add("hidden"));
   $(id).classList.remove("hidden");
 }
+function syncMobUI() {
+  const av = $("mobAvatar"); if (av) av.innerText = myAvatar;
+  const nm = $("mobPlayerName"); if (nm) nm.innerText = myName || "";
+  const sc = $("mobScore"); if (sc) sc.innerText = $("totalScore")?.innerText || "0";
+}
 function renderRoomCode(code) {
   [...(code||"")].forEach((c,i) => { const el=$("m"+(i+1)); if(el) el.innerText=c; });
 }
@@ -186,12 +191,15 @@ function makeOption(text, letter) {
 }
 
 // ─── Sound toggle ─────────────────────────────────────────────────────────────
+function setSoundState(on) {
+  soundOn = on;
+  const sb = $("soundBtn"); if (sb) { sb.innerText = on?"🔊":"🔇"; sb.classList.toggle("muted",!on); }
+  const mb = $("mobSoundBtn"); if (mb) mb.innerText = on?"🔊":"🔇";
+}
 const soundBtn = $("soundBtn");
-if (soundBtn) soundBtn.onclick = () => {
-  soundOn = !soundOn;
-  soundBtn.innerText = soundOn ? "🔊" : "🔇";
-  soundBtn.classList.toggle("muted", !soundOn);
-};
+if (soundBtn) soundBtn.onclick = () => setSoundState(!soundOn);
+const mobSoundBtn = $("mobSoundBtn");
+if (mobSoundBtn) mobSoundBtn.onclick = () => setSoundState(!soundOn);
 
 // ─── Avatar Picker ────────────────────────────────────────────────────────────
 function buildAvatarPicker() {
@@ -218,14 +226,22 @@ function startLeaderboardLive() {
   onSnapshot(q, snap => {
     const list = $("lbList"); if (!list) return;
     list.innerHTML = "";
-    if (snap.empty) { list.innerHTML='<div class="lb-empty">No scores yet.<br>Be the first!</div>'; return; }
+    const mobLb = $("mobLbList");
+    if (snap.empty) {
+      list.innerHTML='<div class="lb-empty">No scores yet.<br>Be the first!</div>';
+      if(mobLb) mobLb.innerHTML='<div class="lb-empty">No scores yet.<br>Be the first!</div>';
+      return;
+    }
     const medals=["🥇","🥈","🥉"]; let rank=0;
+    if(mobLb) mobLb.innerHTML="";
     snap.forEach(d => {
       const p=d.data();
       const row=document.createElement("div");
       row.className="lb-row"+(d.id===uid?" lb-me":"");
       row.innerHTML=`<span class="lb-rank">${medals[rank]||(rank+1)}</span><span class="lb-av">${p.avatar||"🎮"}</span><span class="lb-name">${p.name}</span><span class="lb-score">${p.score}</span>`;
-      list.appendChild(row); rank++;
+      list.appendChild(row);
+      if(mobLb) { const r2=row.cloneNode(true); mobLb.appendChild(r2); }
+      rank++;
     });
   });
 }
@@ -296,6 +312,7 @@ function startLobby(name) {
   renderRoomCode(roomCode);
   const display = $("copyCodeDisplay"); if (display) display.innerText = roomCode||"----";
   show("lobbyScreen");
+  syncMobUI();
   subscribeToRoom();
   subscribeToPlayers();
   setupCopyBtn();
@@ -378,12 +395,19 @@ function subscribeToPlayers() {
     players.sort((a,b) => b.score-a.score);
 
     const list = $("playersList"); list.innerHTML="";
+    const mobList = $("mobPlayersList"); if(mobList) mobList.innerHTML="";
     players.forEach(p => {
       const row=document.createElement("div");
       row.className="player-row"+(p.id===uid?" me":"");
       row.innerHTML=`<span class="pr-av">${p.avatar||"🎮"}</span><span class="pr-name">${p.name}</span><span class="pts">${p.score}</span>`;
       list.appendChild(row);
-      if (p.id===uid) { $("totalScore").innerText=p.score; $("sidebarAvatar").innerText=p.avatar||myAvatar; }
+      if(mobList) { const r2=row.cloneNode(true); mobList.appendChild(r2); }
+      if (p.id===uid) {
+        $("totalScore").innerText=p.score;
+        $("sidebarAvatar").innerText=p.avatar||myAvatar;
+        const ms=$("mobScore"); if(ms) ms.innerText=p.score;
+        const ma=$("mobAvatar"); if(ma) ma.innerText=p.avatar||myAvatar;
+      }
     });
 
     const isHost = gameData && gameData.host===uid;
