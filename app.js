@@ -239,15 +239,7 @@ async function pushToLeaderboard(name, avatar, score) {
   }
 }
 
-// ─── Sidebar Tabs ─────────────────────────────────────────────────────────────
-$("tabPlayers").onclick     = () => switchTab("players");
-$("tabLeaderboard").onclick = () => switchTab("leaderboard");
-function switchTab(tab) {
-  $("tabPlayers").classList.toggle("tab-active", tab==="players");
-  $("tabLeaderboard").classList.toggle("tab-active", tab==="leaderboard");
-  $("panelPlayers").classList.toggle("hidden", tab!=="players");
-  $("panelLeaderboard").classList.toggle("hidden", tab!=="leaderboard");
-}
+// ─── Sidebar Tabs removed — players + leaderboard now stacked ─────────────────
 
 // ─── Name input: auto-save ────────────────────────────────────────────────────
 const nameInput = $("nameInput");
