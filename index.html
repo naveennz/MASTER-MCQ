@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Master MCQ – Series Challenge</title>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
@@ -16,18 +16,20 @@
             --ink:    #1a1b2e;
             --muted:  #8888aa;
             --r:      14px;
+            --sb:     258px; /* sidebar width */
         }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
             font-family: 'Bricolage Grotesque', sans-serif;
             background: var(--white); color: var(--ink);
-            min-height: 100vh;
+            min-height: 100vh; min-height: 100dvh;
             display: flex; justify-content: center; align-items: center;
             user-select: none; -webkit-tap-highlight-color: transparent;
             overflow: hidden;
         }
 
-        /* ── Deco ── */
+        /* ── Floating deco (desktop only) ── */
         .deco { position: fixed; pointer-events: none; z-index: 0; }
         .deco-star  { width:52px;height:52px;background:var(--pur2);clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);top:6%;right:9%;animation:floatA 6s ease-in-out infinite; }
         .deco-star2 { width:32px;height:32px;background:var(--lime);clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);bottom:14%;left:4%;animation:floatB 7s ease-in-out infinite; }
@@ -40,54 +42,40 @@
 
         .hidden { display: none !important; }
 
-        /* ── Shell ── */
+        /* ════════════════════════════════════════
+           DESKTOP SHELL (≥ 640px)
+        ════════════════════════════════════════ */
         .shell {
-            position:relative; z-index:1;
-            width:96%; max-width:1080px; height:680px;
-            display:flex; border-radius:24px; overflow:hidden;
-            border:2.5px solid var(--navy); box-shadow:8px 8px 0 var(--navy);
+            position: relative; z-index: 1;
+            width: 96%; max-width: 1080px; height: 680px;
+            display: flex; border-radius: 24px; overflow: hidden;
+            border: 2.5px solid var(--navy); box-shadow: 8px 8px 0 var(--navy);
         }
 
-        /* ── Sidebar ── */
+        /* ── Sidebar (desktop) ── */
         .sidebar {
-            width:258px; background:var(--navy);
-            display:flex; flex-direction:column;
-            padding:20px 16px; gap:12px; flex-shrink:0;
+            width: var(--sb); background: var(--navy);
+            display: flex; flex-direction: column;
+            padding: 20px 16px; gap: 12px; flex-shrink: 0;
+            overflow: hidden;
         }
-        .brand { font-size:1.35rem; font-weight:800; color:var(--white); letter-spacing:-0.5px; display:flex; align-items:center; justify-content:space-between; }
-        .brand span { color:var(--lime); }
-        .sound-btn { background:transparent; border:none; font-size:1.1rem; cursor:pointer; padding:2px 4px; border-radius:6px; color:white; transition:opacity 0.15s; }
-        .sound-btn.muted { opacity:0.4; }
+        .brand { font-size:1.35rem;font-weight:800;color:var(--white);letter-spacing:-0.5px;display:flex;align-items:center;justify-content:space-between; }
+        .brand span { color: var(--lime); }
+        .sound-btn { background:transparent;border:none;font-size:1.1rem;cursor:pointer;padding:2px 4px;border-radius:6px;color:white;transition:opacity 0.15s; }
+        .sound-btn.muted { opacity: 0.4; }
 
-        .profile-card {
-            background:rgba(255,255,255,0.05); border:1.5px solid rgba(255,255,255,0.1);
-            border-radius:14px; padding:13px; text-align:center;
-        }
-        .avatar-ring { width:46px;height:46px;background:var(--lime);border-radius:50%;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:1.35rem;border:2px solid white; }
-        #playerName { font-size:0.65rem;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase; }
-        .score-num  { font-size:2.1rem;font-weight:800;color:var(--lime);line-height:1;margin-top:3px; }
-        .score-sub  { font-size:0.6rem;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase; }
+        .profile-card { background:rgba(255,255,255,0.05);border:1.5px solid rgba(255,255,255,0.1);border-radius:14px;padding:13px;text-align:center; }
+        .avatar-ring  { width:46px;height:46px;background:var(--lime);border-radius:50%;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:1.35rem;border:2px solid white; }
+        #playerName   { font-size:0.65rem;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase; }
+        .score-num    { font-size:2.1rem;font-weight:800;color:var(--lime);line-height:1;margin-top:3px; }
+        .score-sub    { font-size:0.6rem;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase; }
 
-        /* Cache badge */
-        .cache-badge {
-            background:rgba(200,241,53,0.12); border:1px solid rgba(200,241,53,0.3);
-            border-radius:8px; padding:5px 8px; font-size:0.68rem; color:var(--lime);
-            text-align:center; display:none;
-        }
+        .cache-badge  { background:rgba(200,241,53,0.12);border:1px solid rgba(200,241,53,0.3);border-radius:8px;padding:5px 8px;font-size:0.68rem;color:var(--lime);text-align:center;display:none; }
         .cache-badge.show { display:block; }
 
-        /* Tabs */
-        .tabs { display:flex; gap:4px; background:rgba(255,255,255,0.05); border-radius:10px; padding:3px; }
-        .tab-btn {
-            flex:1; padding:6px 4px; border-radius:8px; border:none;
-            background:transparent; color:var(--muted);
-            font-family:'Bricolage Grotesque',sans-serif; font-size:0.66rem; font-weight:700; letter-spacing:0.5px;
-            cursor:pointer; transition:background 0.15s,color 0.15s;
-        }
-        .tab-btn.tab-active { background:var(--purple); color:white; }
-
-        .s-label { font-size:0.62rem;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase; }
-        .panel { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:5px; }
+        .s-label    { font-size:0.62rem;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase; }
+        .lb-divider { height:1px;background:rgba(255,255,255,0.08);margin:4px 0; }
+        .panel      { flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;min-height:0; }
         .panel::-webkit-scrollbar { width:2px; }
         .panel::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); }
 
@@ -97,7 +85,7 @@
         .pr-name { flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
         .pts     { font-family:'DM Mono',monospace;color:var(--lime);font-size:0.75rem;flex-shrink:0; }
 
-        .lb-row  { display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;background:rgba(255,255,255,0.04);font-size:0.82rem;color:var(--white);border:1px solid rgba(255,255,255,0.06); }
+        .lb-row   { display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;background:rgba(255,255,255,0.04);font-size:0.82rem;color:var(--white);border:1px solid rgba(255,255,255,0.06); }
         .lb-row.lb-me { background:rgba(200,241,53,0.1);border-color:rgba(200,241,53,0.25); }
         .lb-rank  { font-size:0.85rem;width:22px;flex-shrink:0;text-align:center; }
         .lb-av    { font-size:1rem;flex-shrink:0; }
@@ -105,26 +93,35 @@
         .lb-score { font-family:'DM Mono',monospace;color:var(--lime);font-size:0.75rem;flex-shrink:0; }
         .lb-empty { color:var(--muted);font-size:0.8rem;text-align:center;padding:20px 10px;line-height:1.6; }
 
-        /* Room code */
         .room-digits { display:flex;gap:5px;margin-top:6px; }
         .room-digit  { flex:1;padding:8px 0;text-align:center;border-radius:8px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);font-family:'DM Mono',monospace;font-weight:700;font-size:1.05rem;color:var(--pur2); }
 
-        /* ── Content ── */
+        /* ── Content (desktop) ── */
         .content { flex:1;background:var(--white);display:flex;flex-direction:column;overflow-y:auto;position:relative; }
         .content::-webkit-scrollbar { width:3px; }
         .content::-webkit-scrollbar-thumb { background:var(--gray);border-radius:3px; }
 
-        /* ── Buttons ── */
-        button { font-family:'Bricolage Grotesque',sans-serif;cursor:pointer;border:2.5px solid var(--navy);border-radius:var(--r);font-weight:700;transition:transform 0.08s,box-shadow 0.08s;user-select:none; }
-        button:not(:disabled):active { transform:translate(3px,3px)!important; box-shadow:0 0 0 transparent!important; }
-        button:disabled { opacity:0.38;cursor:not-allowed; }
-        .btn-lime   { width:100%;padding:14px;background:var(--lime);color:var(--ink);font-size:1rem;box-shadow:4px 4px 0 var(--navy);margin-bottom:10px; }
-        .btn-ghost  { width:100%;padding:13px;background:transparent;color:var(--ink);font-size:0.95rem;box-shadow:4px 4px 0 var(--navy); }
-        .btn-purple { padding:14px 30px;background:var(--purple);color:white;font-size:0.95rem;box-shadow:4px 4px 0 var(--navy);border-color:var(--navy); }
-        .btn-outline-sm { padding:11px 26px;background:transparent;color:var(--ink);font-size:0.9rem;box-shadow:3px 3px 0 var(--navy); }
+        /* ── Mobile-only elements: hidden on desktop ── */
+        .mobile-nav      { display:none; }
+        .mob-profile     { display:none; }
+        .mob-panel-overlay { display:none !important; }
 
-        /* ── Home ── */
-        #homeScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:26px; }
+        /* ════════════════════════════════════════
+           BUTTONS
+        ════════════════════════════════════════ */
+        button { font-family:'Bricolage Grotesque',sans-serif;cursor:pointer;border:2.5px solid var(--navy);border-radius:var(--r);font-weight:700;transition:transform 0.08s,box-shadow 0.08s;user-select:none; }
+        button:not(:disabled):active { transform:translate(3px,3px)!important;box-shadow:0 0 0 transparent!important; }
+        button:disabled { opacity:0.38;cursor:not-allowed; }
+        .btn-lime     { width:100%;padding:14px;background:var(--lime);color:var(--ink);font-size:1rem;box-shadow:4px 4px 0 var(--navy);margin-bottom:10px; }
+        .btn-ghost    { width:100%;padding:13px;background:transparent;color:var(--ink);font-size:0.95rem;box-shadow:4px 4px 0 var(--navy); }
+        .btn-purple   { padding:14px 30px;background:var(--purple);color:white;font-size:0.95rem;box-shadow:4px 4px 0 var(--navy);border-color:var(--navy); }
+        .btn-outline-sm { padding:11px 26px;background:transparent;color:var(--ink);font-size:0.9rem;box-shadow:3px 3px 0 var(--navy); }
+        .btn-solo     { width:100%;padding:13px;background:var(--navy);color:var(--lime);font-size:0.95rem;box-shadow:4px 4px 0 rgba(0,0,0,0.3);border-color:var(--navy);margin-top:10px; }
+
+        /* ════════════════════════════════════════
+           HOME SCREEN
+        ════════════════════════════════════════ */
+        #homeScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:26px;overflow-y:auto; }
         .home-inner { width:100%;max-width:400px; }
         .home-badge { display:inline-flex;align-items:center;gap:8px;background:var(--lime);color:var(--ink);border-radius:100px;padding:5px 14px;font-size:0.72rem;font-weight:700;letter-spacing:0.5px;margin-bottom:12px;border:1.5px solid var(--navy);box-shadow:2px 2px 0 var(--navy); }
         .home-badge .dot { width:6px;height:6px;background:var(--navy);border-radius:50%; }
@@ -135,7 +132,7 @@
         .av-label { font-size:0.68rem;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:7px; }
         .av-grid  { display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-bottom:13px; }
         .av-btn   { aspect-ratio:1;border:2px solid transparent;border-radius:8px;background:var(--gray);font-size:1.05rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color 0.12s,transform 0.08s;padding:3px; }
-        .av-btn:hover { border-color:var(--purple); }
+        .av-btn:hover  { border-color:var(--purple); }
         .av-btn:active { transform:scale(0.9); }
         .av-btn.av-selected { border-color:var(--purple);background:rgba(124,92,191,0.15);box-shadow:0 0 0 2px var(--purple); }
 
@@ -144,9 +141,11 @@
         input:focus { border-color:var(--purple);box-shadow:3px 3px 0 var(--purple); }
         input::placeholder { color:var(--muted);font-weight:400; }
 
-        /* ── Lobby ── */
-        #lobbyScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:40px; }
-        .lobby-card { border:2.5px solid var(--navy);border-radius:20px;padding:34px;text-align:center;width:100%;max-width:380px;background:white;box-shadow:6px 6px 0 var(--navy); }
+        /* ════════════════════════════════════════
+           LOBBY
+        ════════════════════════════════════════ */
+        #lobbyScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:30px; }
+        .lobby-card  { border:2.5px solid var(--navy);border-radius:20px;padding:30px;text-align:center;width:100%;max-width:380px;background:white;box-shadow:6px 6px 0 var(--navy); }
         #roomLabel   { font-size:1.4rem;font-weight:800;letter-spacing:3px;color:var(--purple);margin-bottom:6px; }
         #lobbyStatus { color:var(--muted);font-size:0.9rem;margin-bottom:18px; }
         .copy-row    { display:flex;align-items:center;gap:8px;background:rgba(124,92,191,0.07);border:2px solid var(--purple);border-radius:12px;padding:10px 14px;margin-bottom:16px; }
@@ -155,7 +154,9 @@
         .btn-copy:active { transform:translate(2px,2px)!important;box-shadow:0 0 0 transparent!important; }
         .btn-copy.copied { background:var(--lime);color:var(--ink);border-color:var(--lime); }
 
-        /* ── Game ── */
+        /* ════════════════════════════════════════
+           GAME SCREEN
+        ════════════════════════════════════════ */
         #gameScreen { display:flex;flex-direction:column;height:100%;padding:18px 22px;position:relative; }
         #answerToast { position:absolute;top:13px;right:13px;padding:7px 15px;border-radius:100px;border:2px solid var(--navy);font-size:0.8rem;font-weight:700;opacity:0;transform:translateY(-6px);transition:opacity 0.22s,transform 0.22s;pointer-events:none;z-index:10;box-shadow:2px 2px 0 var(--navy); }
         #answerToast.show { opacity:1;transform:translateY(0); }
@@ -165,10 +166,10 @@
 
         .game-topbar { display:flex;align-items:center;justify-content:space-between;margin-bottom:9px; }
         #roundIndicator { font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted); }
-        .timer-wrap { display:flex;align-items:center;gap:8px; }
-        #timerText  { font-family:'DM Mono',monospace;font-size:0.88rem;font-weight:500;color:var(--ink);min-width:22px;text-align:right; }
+        .timer-wrap  { display:flex;align-items:center;gap:8px; }
+        #timerText   { font-family:'DM Mono',monospace;font-size:0.88rem;font-weight:500;color:var(--ink);min-width:22px;text-align:right; }
         .timer-track { width:100px;height:8px;background:var(--gray);border-radius:100px;border:1.5px solid var(--navy);overflow:hidden; }
-        #timerBar   { height:100%;background:var(--lime);width:100%;border-radius:100px;transition:width 0.1s linear,background 0.4s; }
+        #timerBar    { height:100%;background:var(--lime);width:100%;border-radius:100px;transition:width 0.1s linear,background 0.4s; }
         #timerBar.low { background:#ff6b6b; }
 
         .q-tag { display:inline-block;background:var(--purple);color:white;border-radius:100px;padding:3px 12px;font-size:0.66rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;border:1.5px solid var(--navy); }
@@ -190,81 +191,213 @@
         .opt.wrong::after { content:'✗';position:absolute;right:44px;font-size:0.95rem;color:#dc2626;font-weight:800; }
         .opt.dimmed { opacity:0.35; }
 
-        /* ── Player choice badges on reveal ── */
+        /* Player choice badges */
         .choice-badges { position:absolute;right:10px;top:50%;transform:translateY(-50%);display:flex;gap:3px;align-items:center; }
-        .choice-badge  { font-size:1.1rem;line-height:1;border-radius:50%;background:rgba(255,255,255,0.9);border:2px solid var(--gray);padding:2px;box-shadow:0 1px 4px rgba(0,0,0,0.15);transition:transform 0.2s; }
+        .choice-badge  { font-size:1.1rem;line-height:1;border-radius:50%;background:rgba(255,255,255,0.9);border:2px solid var(--gray);padding:2px;box-shadow:0 1px 4px rgba(0,0,0,0.15); }
         .choice-badge.choice-me { border-color:var(--purple);box-shadow:0 0 0 2px var(--pur2); }
 
-        /* ── Round Winner ── */
-        #roundWinnerScreen { display:flex;align-items:center;justify-content:center;height:100%; }
-        .rw-card { border:2.5px solid var(--navy);border-radius:20px;padding:36px 40px;text-align:center;max-width:480px;width:90%;background:white;box-shadow:6px 6px 0 var(--navy); }
-        .rw-title { font-size:1.5rem;font-weight:800;margin-bottom:24px;color:var(--ink); }
-        .rw-podium { display:flex;justify-content:center;gap:20px;margin-bottom:24px;flex-wrap:wrap; }
-        .rw-player { display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 18px;border-radius:14px;border:2px solid var(--gray);min-width:100px; }
+        /* ════════════════════════════════════════
+           ROUND WINNER
+        ════════════════════════════════════════ */
+        #roundWinnerScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:20px; }
+        .rw-card   { border:2.5px solid var(--navy);border-radius:20px;padding:30px;text-align:center;max-width:480px;width:100%;background:white;box-shadow:6px 6px 0 var(--navy); }
+        .rw-title  { font-size:1.4rem;font-weight:800;margin-bottom:20px; }
+        .rw-podium { display:flex;justify-content:center;gap:16px;margin-bottom:20px;flex-wrap:wrap; }
+        .rw-player { display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 16px;border-radius:14px;border:2px solid var(--gray);min-width:90px; }
         .rw-player.rw-me { border-color:var(--purple);background:rgba(124,92,191,0.06); }
-        .rw-medal  { font-size:1.6rem;line-height:1; }
-        .rw-av     { font-size:1.8rem;line-height:1; }
-        .rw-name   { font-size:0.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+        .rw-medal  { font-size:1.5rem;line-height:1; }
+        .rw-av     { font-size:1.7rem;line-height:1; }
+        .rw-name   { font-size:0.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
         .rw-score  { font-family:'DM Mono',monospace;font-size:1rem;font-weight:700;color:var(--purple); }
-        .rw-waiting { font-size:0.85rem;color:var(--muted);margin-bottom:16px; }
+        .rw-waiting { font-size:0.85rem;color:var(--muted);margin-bottom:12px; }
         .rw-actions { display:flex;flex-direction:column;align-items:center;gap:10px; }
 
-        /* ── Series Winner ── */
-        #seriesWinnerScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:24px; }
-        .series-card { border:2.5px solid var(--navy);border-radius:20px;padding:28px;text-align:center;width:100%;max-width:640px;background:white;box-shadow:6px 6px 0 var(--navy); }
-        .series-card h1 { font-size:1.3rem;font-weight:800;margin-bottom:16px; }
+        /* ════════════════════════════════════════
+           SERIES WINNER
+        ════════════════════════════════════════ */
+        #seriesWinnerScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:20px; }
+        .series-card { border:2.5px solid var(--navy);border-radius:20px;padding:26px;text-align:center;width:100%;max-width:640px;background:white;box-shadow:6px 6px 0 var(--navy); }
+        .series-card h1 { font-size:1.25rem;font-weight:800;margin-bottom:14px; }
         table { width:100%;border-collapse:collapse; }
-        th { padding:9px;background:var(--navy);color:white;font-size:0.65rem;letter-spacing:1.5px;text-transform:uppercase;text-align:center;font-weight:700; }
-        td { padding:9px;border-bottom:1.5px solid var(--gray);font-size:0.85rem;text-align:center;font-weight:600; }
+        th { padding:8px;background:var(--navy);color:white;font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;text-align:center;font-weight:700; }
+        td { padding:8px;border-bottom:1.5px solid var(--gray);font-size:0.83rem;text-align:center;font-weight:600; }
         td strong { color:var(--purple);font-family:'DM Mono',monospace; }
         tr.my-row td { background:rgba(200,241,53,0.07); }
 
-        /* ── Solo mode button ── */
-        .btn-solo { width:100%;padding:13px;background:var(--navy);color:var(--lime);font-size:0.95rem;box-shadow:4px 4px 0 rgba(0,0,0,0.3);border-color:var(--navy);margin-top:10px; }
-
-        /* ── Solo screen ── */
+        /* ════════════════════════════════════════
+           SOLO GAME
+        ════════════════════════════════════════ */
         #soloScreen { display:flex;flex-direction:column;height:100%;padding:18px 22px;position:relative; }
         .solo-stats-bar { display:flex;align-items:center;justify-content:space-between;margin-bottom:10px; }
         .solo-stat { display:flex;flex-direction:column;gap:1px; }
         .solo-stat-lbl { font-size:0.62rem;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase; }
         .solo-stat-val { font-family:'DM Mono',monospace;font-size:1.1rem;font-weight:800;color:var(--ink); }
-
-        .solo-feedback {
-            margin-top:10px; padding:10px 14px; border-radius:12px;
-            font-size:0.88rem; font-weight:700; line-height:1.4;
-            border:2px solid transparent;
-        }
+        .solo-feedback { margin-top:10px;padding:10px 14px;border-radius:12px;font-size:0.88rem;font-weight:700;line-height:1.4;border:2px solid transparent; }
         .solo-feedback.hidden { display:none; }
         .solo-correct { background:#f0fdf4;border-color:#16a34a;color:#15803d; }
         .solo-wrong   { background:#fef2f2;border-color:#dc2626;color:#b91c1c; }
         .solo-timeout { background:rgba(26,27,46,0.07);border-color:var(--navy);color:var(--ink); }
-
-        /* Solo timer bar reuse */
         #soloTimerBar { height:100%;background:var(--lime);width:100%;border-radius:100px;transition:width 0.1s linear,background 0.4s; }
         #soloTimerBar.low { background:#ff6b6b; }
 
-        /* ── Solo result ── */
-        #soloResultScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:28px; }
-        .sr-card { border:2.5px solid var(--navy);border-radius:20px;padding:32px 36px;text-align:center;width:100%;max-width:420px;background:white;box-shadow:6px 6px 0 var(--navy); }
-        .sr-grade     { font-size:1.4rem;font-weight:800;margin-bottom:10px; }
-        .sr-score     { font-size:3.5rem;font-weight:800;color:var(--purple);line-height:1;font-family:'DM Mono',monospace; }
-        .sr-score-lbl { font-size:0.72rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px; }
-        .sr-pb        { font-size:0.82rem;font-weight:700;color:var(--muted);margin-bottom:20px;padding:6px 12px;border-radius:20px;display:inline-block; }
+        /* ════════════════════════════════════════
+           SOLO RESULT
+        ════════════════════════════════════════ */
+        #soloResultScreen { display:flex;align-items:center;justify-content:center;height:100%;padding:24px;overflow-y:auto; }
+        .sr-card      { border:2.5px solid var(--navy);border-radius:20px;padding:28px;text-align:center;width:100%;max-width:420px;background:white;box-shadow:6px 6px 0 var(--navy); }
+        .sr-grade     { font-size:1.4rem;font-weight:800;margin-bottom:8px; }
+        .sr-score     { font-size:3.2rem;font-weight:800;color:var(--purple);line-height:1;font-family:'DM Mono',monospace; }
+        .sr-score-lbl { font-size:0.72rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px; }
+        .sr-pb        { font-size:0.82rem;font-weight:700;color:var(--muted);margin-bottom:16px;padding:5px 12px;border-radius:20px;display:inline-block; }
         .sr-pb.new-pb { background:var(--lime);color:var(--ink);border:1.5px solid var(--navy); }
-        .sr-stats     { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px; }
-        .sr-stat      { border:2px solid var(--gray);border-radius:12px;padding:12px 8px; }
+        .sr-stats     { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px; }
+        .sr-stat      { border:2px solid var(--gray);border-radius:12px;padding:10px 8px; }
         .sr-stat-val  { font-family:'DM Mono',monospace;font-size:1.5rem;font-weight:800;line-height:1; }
-        .sr-stat-lbl  { font-size:0.65rem;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-top:4px; }
+        .sr-stat-lbl  { font-size:0.65rem;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-top:3px; }
         .sr-correct .sr-stat-val { color:#16a34a; }
         .sr-wrong   .sr-stat-val { color:#dc2626; }
         .sr-streak  .sr-stat-val { color:var(--purple); }
-        .sr-pct     .sr-stat-val { color:var(--ink); }
         .sr-actions { display:flex;flex-direction:column;gap:8px; }
 
+        /* ════════════════════════════════════════
+           MOBILE (≤ 639px)
+        ════════════════════════════════════════ */
+        @media (max-width: 639px) {
+            body { align-items: flex-start; overflow: hidden; }
+
+            /* Hide desktop deco on mobile */
+            .deco { display: none; }
+
+            /* Shell becomes full screen, stacked vertically */
+            .shell {
+                width: 100%; max-width: 100%;
+                height: 100vh; height: 100dvh;
+                flex-direction: column;
+                border-radius: 0;
+                border: none;
+                box-shadow: none;
+            }
+
+            /* Sidebar hidden on mobile — replaced by top bar + bottom nav */
+            .sidebar { display: none; }
+
+            /* Content fills everything except bottom nav */
+            .content {
+                flex: 1;
+                padding-bottom: 0;
+                min-height: 0;
+            }
+
+            /* ── Mobile top bar ── */
+            .mob-profile {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                background: var(--navy);
+                padding: 10px 16px;
+                flex-shrink: 0;
+            }
+            .mob-av    { width:34px;height:34px;background:var(--lime);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;border:2px solid white;flex-shrink:0; }
+            .mob-name  { font-size:0.78rem;font-weight:700;color:white;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+            .mob-score { font-family:'DM Mono',monospace;font-size:1rem;font-weight:800;color:var(--lime); }
+            .mob-sound { background:transparent;border:none;font-size:1rem;color:white;cursor:pointer;padding:4px; }
+            .mob-brand { font-size:1rem;font-weight:800;color:var(--white);letter-spacing:-0.5px; }
+            .mob-brand span { color:var(--lime); }
+
+            /* ── Mobile bottom nav ── */
+            .mobile-nav {
+                display: flex;
+                background: var(--navy);
+                border-top: 2px solid rgba(255,255,255,0.08);
+                flex-shrink: 0;
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+            .mob-nav-btn {
+                flex: 1; padding: 10px 4px 8px;
+                background: transparent; border: none;
+                color: var(--muted); font-size: 0.6rem; font-weight: 700;
+                letter-spacing: 0.5px; text-transform: uppercase;
+                display: flex; flex-direction: column; align-items: center; gap: 3px;
+                cursor: pointer; transition: color 0.15s;
+            }
+            .mob-nav-btn .nav-icon { font-size: 1.3rem; line-height: 1; }
+            .mob-nav-btn.active    { color: var(--lime); }
+
+            /* ── Mobile overlay panels (players / leaderboard) ── */
+            .mob-panel-overlay {
+                display: flex !important;
+                position: absolute; inset: 0; z-index: 50;
+                background: var(--navy);
+                display: flex; flex-direction: column;
+                padding: 0 0 env(safe-area-inset-bottom);
+                transform: translateY(100%);
+                transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+            }
+            .mob-panel-overlay.open { transform: translateY(0); }
+            .mob-panel-header {
+                display: flex; align-items: center; justify-content: space-between;
+                padding: 14px 18px;
+                border-bottom: 1px solid rgba(255,255,255,0.08);
+            }
+            .mob-panel-title { font-size:1rem;font-weight:800;color:white; }
+            .mob-panel-close { background:transparent;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;padding:4px; }
+            .mob-panel-body  { flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px; }
+
+            /* ── Mobile room code pill ── */
+            .mob-room-pill {
+                display: flex; align-items: center; gap: 6px;
+                background: rgba(255,255,255,0.07); border-radius: 8px;
+                padding: 5px 10px; font-family:'DM Mono',monospace;
+                font-size: 0.8rem; font-weight: 700; color: var(--pur2);
+                cursor: pointer; border: 1px solid rgba(255,255,255,0.1);
+            }
+
+            /* Adjust screens for mobile */
+            #homeScreen  { height:auto;min-height:100%;padding:20px 18px; align-items:flex-start; }
+            .home-inner  { max-width:100%; }
+            .home-title  { font-size:1.7rem; }
+            .av-grid     { grid-template-columns:repeat(10,1fr);gap:3px; }
+            .av-btn      { font-size:0.95rem; }
+
+            #lobbyScreen { height:auto;min-height:100%;padding:20px 18px;align-items:flex-start; }
+            .lobby-card  { box-shadow:none;border:none;padding:0;max-width:100%; }
+            #roomLabel   { font-size:1.2rem; }
+
+            #gameScreen  { padding:12px 14px;height:auto;min-height:100%; }
+            .q-box       { font-size:0.9rem;padding:14px 15px; }
+            .opt         { padding:10px 12px;font-size:0.86rem; }
+            .timer-track { width:70px; }
+
+            #roundWinnerScreen   { height:auto;min-height:100%;padding:20px 18px; }
+            .rw-card             { box-shadow:none;border:none;padding:0;max-width:100%; }
+
+            #seriesWinnerScreen  { height:auto;min-height:100%;padding:16px; }
+            .series-card         { box-shadow:none;padding:0;border:none;max-width:100%; }
+
+            #soloScreen          { padding:12px 14px;height:auto;min-height:100%; }
+            #soloResultScreen    { height:auto;min-height:100%;padding:18px; }
+            .sr-card             { box-shadow:none;border:none;padding:0;max-width:100%; }
+            .sr-score            { font-size:2.8rem; }
+
+            /* Choices badges smaller on mobile */
+            .choice-badge { font-size:0.9rem; }
+        }
+
+        /* ════════════════════════════════════════
+           TABLET (640–900px) — sidebar slimmer
+        ════════════════════════════════════════ */
+        @media (min-width:640px) and (max-width:900px) {
+            :root { --sb: 200px; }
+            .sidebar { padding: 16px 12px; gap: 10px; }
+            .shell   { height: 100vh; height:100dvh; width:100%; max-width:100%; border-radius:0; border:none; box-shadow:none; }
+            .score-num { font-size:1.7rem; }
+            .brand     { font-size:1.1rem; }
+        }
     </style>
 </head>
 <body>
 
+<!-- Desktop deco -->
 <div class="deco deco-star"></div>
 <div class="deco deco-star2"></div>
 <div class="deco deco-ring"></div>
@@ -274,10 +407,9 @@
 
 <div class="shell">
 
-    <!-- ── Sidebar ── -->
+    <!-- ══ SIDEBAR (desktop/tablet) ══ -->
     <aside class="sidebar">
-        <div class="brand">
-            M<span>MCQ</span>
+        <div class="brand">M<span>MCQ</span>
             <button class="sound-btn" id="soundBtn" title="Toggle sound">🔊</button>
         </div>
 
@@ -288,20 +420,15 @@
             <div class="score-sub">Total Points</div>
         </div>
 
-        <!-- Returning player cache badge -->
         <div class="cache-badge" id="cacheBadge">👋 Welcome back!</div>
 
-        <div class="tabs">
-            <button class="tab-btn tab-active" id="tabPlayers">Players</button>
-            <button class="tab-btn" id="tabLeaderboard">🏆 Global</button>
-        </div>
+        <div class="s-label">Players</div>
+        <div id="playersList" style="display:flex;flex-direction:column;gap:5px;"></div>
 
-        <div class="panel" id="panelPlayers">
-            <div id="playersList"></div>
-        </div>
-        <div class="panel hidden" id="panelLeaderboard">
-            <div id="lbList"></div>
-        </div>
+        <div class="lb-divider"></div>
+
+        <div class="s-label">🏆 Global Top 20</div>
+        <div class="panel" id="lbList"></div>
 
         <div>
             <div class="s-label">Room Code</div>
@@ -314,15 +441,40 @@
         </div>
     </aside>
 
-    <!-- ── Content ── -->
+    <!-- ══ CONTENT ══ -->
     <main class="content">
+
+        <!-- Mobile overlay panels (hidden on desktop via CSS) -->
+        <div class="mob-panel-overlay" id="mobPlayersPanel">
+            <div class="mob-panel-header">
+                <span class="mob-panel-title">Players</span>
+                <button class="mob-panel-close" onclick="closeMobPanel('mobPlayersPanel')">✕</button>
+            </div>
+            <div class="mob-panel-body" id="mobPlayersList"></div>
+        </div>
+        <div class="mob-panel-overlay" id="mobLbPanel">
+            <div class="mob-panel-header">
+                <span class="mob-panel-title">🏆 Global Leaderboard</span>
+                <button class="mob-panel-close" onclick="closeMobPanel('mobLbPanel')">✕</button>
+            </div>
+            <div class="mob-panel-body" id="mobLbList"></div>
+        </div>
+
+        <!-- Mobile top bar -->
+        <div class="mob-profile" id="mobTopBar">
+            <div class="mob-av" id="mobAvatar">🎮</div>
+            <span class="mob-brand">M<span style="color:var(--lime)">MCQ</span></span>
+            <span class="mob-name" id="mobPlayerName"></span>
+            <span class="mob-score" id="mobScore"></span>
+            <button class="mob-sound" id="mobSoundBtn">🔊</button>
+        </div>
 
         <!-- HOME -->
         <section id="homeScreen">
             <div class="home-inner">
                 <div class="home-badge"><span class="dot"></span> Live Multiplayer Quiz</div>
                 <h1 class="home-title">Seamless <em>Quiz</em><br>Challenge.</h1>
-                <p class="home-sub">Pick your icon, enter your name, host or join a match.</p>
+                <p class="home-sub">Pick your icon, enter your name, host or join.</p>
                 <div class="av-label">Choose your icon</div>
                 <div class="av-grid" id="avatarGrid"></div>
                 <div class="input-group">
@@ -372,7 +524,7 @@
         <!-- ROUND WINNER -->
         <section id="roundWinnerScreen" class="hidden">
             <div class="rw-card">
-                <div id="roundWinnerContent"><!-- filled by JS --></div>
+                <div id="roundWinnerContent"></div>
                 <div class="rw-actions">
                     <p class="rw-waiting hidden" id="rwWaiting">Waiting for host to start next round...</p>
                     <button id="nextLevelBtn" class="btn-purple hidden">Next Round →</button>
@@ -385,11 +537,10 @@
         <section id="seriesWinnerScreen" class="hidden">
             <div class="series-card">
                 <h1>🏆 Series Final Results 🏆</h1>
-                <div id="seriesStats" style="overflow-x:auto;margin-bottom:20px;"></div>
+                <div id="seriesStats" style="overflow-x:auto;margin-bottom:18px;"></div>
                 <button onclick="location.reload()" class="btn-outline-sm">Play Again</button>
             </div>
         </section>
-
 
         <!-- SOLO GAME -->
         <section id="soloScreen" class="hidden">
@@ -402,7 +553,7 @@
             </div>
             <div class="solo-stats-bar">
                 <div class="solo-stat"><span class="solo-stat-lbl">Score</span><span class="solo-stat-val" id="soloScoreVal">0</span></div>
-                <div class="q-tag" id="soloQTag" style="margin:0">Question 1 of 20</div>
+                <div class="q-tag" id="soloQTag" style="margin:0">Q 1 of 20</div>
                 <div class="solo-stat" style="text-align:right"><span class="solo-stat-lbl">Streak</span><span class="solo-stat-val" id="soloStreakVal">0</span></div>
             </div>
             <div class="q-box" id="soloQuestion"></div>
@@ -425,22 +576,10 @@
                 <div class="sr-score-lbl">points scored</div>
                 <div class="sr-pb" id="srPB"></div>
                 <div class="sr-stats">
-                    <div class="sr-stat sr-correct">
-                        <div class="sr-stat-val" id="srCorrect">0</div>
-                        <div class="sr-stat-lbl">Correct</div>
-                    </div>
-                    <div class="sr-stat sr-wrong">
-                        <div class="sr-stat-val" id="srWrong">0</div>
-                        <div class="sr-stat-lbl">Wrong</div>
-                    </div>
-                    <div class="sr-stat sr-streak">
-                        <div class="sr-stat-val" id="srStreak">0</div>
-                        <div class="sr-stat-lbl">Best Streak</div>
-                    </div>
-                    <div class="sr-stat sr-pct">
-                        <div class="sr-stat-val" id="srPercent">0%</div>
-                        <div class="sr-stat-lbl">Accuracy</div>
-                    </div>
+                    <div class="sr-stat sr-correct"><div class="sr-stat-val" id="srCorrect">0</div><div class="sr-stat-lbl">Correct</div></div>
+                    <div class="sr-stat sr-wrong"><div class="sr-stat-val" id="srWrong">0</div><div class="sr-stat-lbl">Wrong</div></div>
+                    <div class="sr-stat sr-streak"><div class="sr-stat-val" id="srStreak">0</div><div class="sr-stat-lbl">Best Streak</div></div>
+                    <div class="sr-stat sr-pct"><div class="sr-stat-val" id="srPercent">0%</div><div class="sr-stat-lbl">Accuracy</div></div>
                 </div>
                 <div class="sr-actions">
                     <button class="btn-lime" id="srPlayAgainBtn">Play Again →</button>
@@ -450,7 +589,46 @@
         </section>
 
     </main>
+
+    <!-- ══ MOBILE BOTTOM NAV ══ -->
+    <nav class="mobile-nav">
+        <button class="mob-nav-btn active" id="mobNavHome" onclick="mobNav('home')">
+            <span class="nav-icon">🏠</span>Home
+        </button>
+        <button class="mob-nav-btn" id="mobNavPlayers" onclick="openMobPanel('mobPlayersPanel')">
+            <span class="nav-icon">👥</span>Players
+        </button>
+        <button class="mob-nav-btn" id="mobNavLb" onclick="openMobPanel('mobLbPanel')">
+            <span class="nav-icon">🏆</span>Global
+        </button>
+        <button class="mob-nav-btn" id="mobNavRoom" onclick="copyRoomMob()">
+            <span class="nav-icon">📋</span>Room
+        </button>
+    </nav>
 </div>
+
+<script>
+// Mobile panel helpers (non-module, runs immediately)
+function openMobPanel(id) {
+    document.getElementById(id).classList.add('open');
+}
+function closeMobPanel(id) {
+    document.getElementById(id).classList.remove('open');
+}
+function mobNav(tab) {
+    document.querySelectorAll('.mob-nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('mobNavHome').classList.add('active');
+}
+function copyRoomMob() {
+    // Trigger the existing copy button
+    const btn = document.getElementById('copyCodeBtn');
+    if (btn) btn.click();
+    // Flash the room nav button
+    const navBtn = document.getElementById('mobNavRoom');
+    navBtn.querySelector('.nav-icon').textContent = '✅';
+    setTimeout(() => navBtn.querySelector('.nav-icon').textContent = '📋', 2000);
+}
+</script>
 
 <script type="module" src="app.js"></script>
 </body>
